@@ -91,6 +91,8 @@ Cons
 ```
 * which Java classes should be mapped to database tables.
 
+
+
 ### 3. Loading Hibenrate Session Factory
 ```
 public static SessionFactory getSessionFactory() {
@@ -145,24 +147,24 @@ will always return a “proxy” (proxy is an object with the given identifier v
 without hitting the database|It always hit the database
 If no row is found, a ObjectNotFoundException will throw.|It will always return null , if the identity value is not found in database.
  
- #### automatically update object
+ ### automatically update object
  ```
  NewUser.setTotal(NewUser.getTotal()+50000);
  ```
 * Database would automatically persist changes to those objects after manipulate object in code
 
-
-
 # Mapping relationships
-* Value types: If an object don’t have its own database identity,never be referenced, belong to another piece of data
+
+* Value types: is an object of another class but it is stored as a part of Entity object within a database table.
 * entity type: If an object has its own database identity (primary key value,other entity can refer to it 
 * Directionality: relationship can be unidirectional or bidirectional
 * Components: Object is composed of some other object that were treating as a value type
-### Value Type Collection
+
+## Value Type Collection
 > map a single database value (column) to a single, non-aggregated Java type.
 * Value type collections are mapped to two tables
 
-### mapping file
+## mapping file
 * add one component
 ```
 <component name="proteinData">
@@ -175,6 +177,7 @@ If no row is found, a ObjectNotFoundException will throw.|It will always return 
 </component>
 ```
 * The Hibernate mapping element used for mapping a collection depends upon the type of interface. For example, a <set> element is used for mapping properties of type Set.
+	
 * A list of components
 	
 ```
@@ -184,10 +187,11 @@ If no row is found, a ObjectNotFoundException will throw.|It will always return 
 </composite-element>
 ```
 
-### mapping entity relationships
+## mapping entity relationships
 #### One to many
 * Avoid update twice:`inverse="true"`
 * If a ‘Stock’ is saved, all its referenced ‘stockDailyRecords’ should be saved into database as well--->`casecade="save-update"`
+* 
 ```
 <list name="history" table="User_his" inverse="true" cascade="save-update">
 	<key column="USER" />
@@ -195,17 +199,27 @@ If no row is found, a ObjectNotFoundException will throw.|It will always return 
 	<one-to-many class="com.practice.proigrammer.UserHistory" />
 </list>
 ```
+* The @JoinColumn annotation defines the actual physical mapping on the owning side
+```
 
-#### One to one 
+@ManyToOne
+@JoinColumn(name="user_id")
+```
+
+### One to one 
 * One to one data
    1. one side is value type, we call it component
    2. they are entity type, it is one to one maping
 * The `<generator>` class is a sub-element of id, used to generate the unique identifier for the objects of persistent class
 ```
  <one-to-one name="proteinData" class="com.practice.proigrammer.ProteinData" cascade="save-update" />
-
 ```
-#### Join
+* the `mappedBy` attribute is used to define the referencing side (non-owning side) of the relationship.
+```
+@OneToOne(mappedBy="ProteinData")
+```
+
+### Join
 * xml 
 ```
 <join table="User_GoalAlert" optional="true">
@@ -218,6 +232,7 @@ If no row is found, a ObjectNotFoundException will throw.|It will always return 
 ```
 * Java based
 ```
+@JoinTable(name = "User_GoalAlert", joinColumns = { @JoinColumn(name = "GoalAlert_ID") }, inverseJoinColumns = { @JoinColumn(name = "PHONE_ID") })
 
 ```
 #### Many-to-many
@@ -227,7 +242,11 @@ If no row is found, a ObjectNotFoundException will throw.|It will always return 
 	<many-to-many class="com.practice.proigrammer.GoalAlert column= "GoalAlert_ID" />
 </set>
 ```
-
+* collection type data member and for two-way binding
+```
+@ManyToMany(mappedBy="vehicle")
+private Collection<User> user=new ArrayList<>();;
+```
 ## QUERY
 * HQL/JPA
 * Criteria API
