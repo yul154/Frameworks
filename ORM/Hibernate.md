@@ -92,18 +92,20 @@ Cons
 * which Java classes should be mapped to database tables.
 
 ### 3. Loading Hibenrate Session Factory
-1. load cfg.xml
 ```
-Configuration configuration= new Configuration().configure();
+public static SessionFactory getSessionFactory() {
+        // Creating Configuration Instance & Passing Hibernate Configuration File
+        Configuration configObj = new Configuration();
+        configObj.configure("hibernate.cfg.xml");
+ 
+        // Since Hibernate Version 4.x, Service Registry Is Being Used
+        ServiceRegistry serviceRegistryObj = new StandardServiceRegistryBuilder().applySettings(configObj.getProperties()).build(); 
+ 
+        // Creating Hibernate Session Factory Instance
+        SessionFactory factoryObj = configObj.buildSessionFactory(serviceRegistryObj);      
+        return factoryObj;
+    }
 ```
-2. Open a service registry:  hosts and manages Services
-```
-serviceRegistry = new StandardServiceRegistryBuilder().applySettings(configuration .getProperties()).build();
-````
-3. Build a `SessionFactory`
-```			
-sessionFactory=configuration.buildSessionFactory(serviceRegistry);
-````
 
 # Mapping 
 <img width="929" alt="Screen Shot 2019-07-16 at 9 32 25 AM" src="https://user-images.githubusercontent.com/27160394/61298667-a2db3800-a7ac-11e9-8041-f0a6e1fd61d3.png">
@@ -118,6 +120,7 @@ session.save(user);// save data in session
 session.getTransaction().commit();// obtain transaction object and tell the database to save all the changes in the current transaction.
 ```
 ## Automatic Schema Creation
+
 #### `hbm2dll.auto`
 * Turn on `hbm2dll.auto`option in config file, which allow auto generation of the ddl
 * There is no guarantee your existing data won't be harmed
@@ -203,6 +206,7 @@ If no row is found, a ObjectNotFoundException will throw.|It will always return 
 
 ```
 #### Join
+* xml 
 ```
 <join table="User_GoalAlert" optional="true">
 	<key column="User"/>
@@ -211,6 +215,10 @@ If no row is found, a ObjectNotFoundException will throw.|It will always return 
 	not-null="true"
 	unique="true" cascade="save-update"/>
 </join>
+```
+* Java based
+```
+
 ```
 #### Many-to-many
 ```
@@ -266,6 +274,9 @@ session.createCriteria(User.class).add(e)
 * 
 
 
+
+
+
 # Summary
 ## Why did you choise Hibernate, What is Hibernate + how it’s different with JDBC
 * A framework for mapping a object-oriented domain model to a relational database
@@ -308,8 +319,8 @@ session.createCriteria(User.class).add(e)
 ## Annotations you use in Hibernate
 * `@Entity`: defines that a class can be mapped to a table
 * `@Table`: allowing you to override the name of the table
-* `@Id and @GeneratedValue `: @Id for primary key, @GeneratedValue  generation strategy to be used 
-* `@Column`:
+* `@Id and @GeneratedValue `: @Id for primary key, @GeneratedValue used to specify how the primary key should be generated.
+* `@Column`:specify the details of the column to which a field or property will be mapped.
 
 ## What are the states of the object in hibernate?
 
