@@ -4,8 +4,10 @@
 * ORM deal with SQL operations, automatically translate to real table
 
 # Hibernate
-> A framework for mapping a object-oriented domain model to a relationalo database
+> A framework for mapping a object-oriented domain model to a relational database
+
 * Hibernate implemented the JPA specification but it also does more than JPA
+* Mapping Java classes to database tables is accomplished through the configuration of an XML file or by using Java annotations.
 
 ## Functions
 * Specify the configuration to use 
@@ -14,8 +16,9 @@
 * Create SQL 
 
 ## With JPA(Java Persistence API) 
-* JPA is an abstract layer, can be treat as interface, and Hibernte can be treat as java class
+* JPA is an abstract layer, can be treat as interface, and Hibernate can be treat as java class
 * Persisting Java objects in a SQL database
+* JPA stands for Java Persistence API. It defines a persistence model for object-relational mapping. This is a Java language specification and it lets us map, store, update, and retrieve from relational databases to Java Objects and vice versa
 
 ## Architecture
 ![architecture](https://user-images.githubusercontent.com/27160394/61223047-e7ea6600-a6e9-11e9-96a3-156d83d2cdb3.jpg)
@@ -32,10 +35,31 @@
 
 * Configuration class: read configuration file and setup Hibernate(create class instance)
 * Session factory class : create a single class instance to manage sessions, ask session factory for the session.
-* Session: 
+* Session: used to get a physical connection with a database. 
   1. firstly ask session to start a new transaction, when it done, and commit transaction
   2. do queries and commands
   3. commit the transaction
+* Transaction - A transaction represents a single unit of database work. This is an optional object.
+* Query – Represents SQL or HQL queries to retrieve or modify data. The query object is used to bind the parameters
+
+### Why Hibernate
+* accessing the database by using JDBC. Programmers often write complex SQL queries and map the result to Java objects programmatically. 
+* This made application tightly coupled and made it hard to port the application to a different database as SQL syntaxes vary between the databases
+* we can easily map Java objects to database tables either using XML configuration or annotations.
+* database independency - Hibernate abstracts the SQL queries using higher-level Hibernate Query Language, this allows us to write the same queries independent of the database independently.
+
+### Hibernate pros and cons
+
+Pros
+* Hibernate uses its own query language HQL and it lets us write queries in a database-independent manner
+* Lets us connect Java Classes to Database tables using XML configuration or using annotation
+* Hibernate has the ability to cache the results to optimize the read performance
+* It supports object inheritance, storing collections to databases
+
+Cons
+* Hibernate is slightly less performant compared to JDBC as it has to convert the HQL to its native SQL each time. It runs many SQL queries in the backend based on our object mapping.
+* Hibernate doesn’t allow us to insert multiple records into the same table using a single query
+* Complex data fetches might lead to multiple iterations of the object-to-table mapping
 
 # Set up 
 ## 1.add dependencies for Hibernate and MySQL Connector Java libraries.
