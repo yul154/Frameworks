@@ -21,6 +21,7 @@
 
 --------------
 # JPA
+*  a JPA-based repository layer that is mainly for CRUD operations, nno create abstract DAO, implementing interfaces, Spring Data JPA is a good choice.
 ## Spring Repositories
 > data access contracts that client code can depend and bind to 
 * Client service code don't even notice when switch the interface implementation out
@@ -38,20 +39,38 @@
 * provides some JPA-related methods such as flushing the persistence context and deleting records in a batch
 # Query DSL
 * is an extensive Java framework, which allows for the generation of type-safe queries in a syntax similar to SQL
+
 ----
 # Spring Data JPA
+> one of Spring Data module which provides predefined repository methods to perform CRUD operation
+
 Spring Data takes this simplification one step forward and makes it possible to remove the DAO implementations entirely
 *  by implementing one of the Repository interfaces, the DAO will already have some basic CRUD methods (and queries) defined and implemented.
 
 ```
 public interface JpaRepository<T,ID>
 extends PagingAndSortingRepository<T,ID>, QueryByExampleExecutor<T>{
-
+    void	deleteAllInBatch(); // Deletes all entities in a batch call.
+    void	deleteInBatch(Iterable<T> entities)// Deletes the given entities in a batch which means it will create a single Query.
+    List<T>	findAll();
+    void	flush(); // Flushes all pending changes to the database.
+    T	getOne(ID id); // Returns a reference to the entity with the given identifier.
+    List<S>	saveAll(Iterable<S> entities);
+    S	saveAndFlush(S entity)// Saves an entity and flushes changes instantly.
 }
 ```
 * First, by extending JpaRepository we get a bunch of generic CRUD methods into our type that allows saving
 * Second,this will allow the Spring Data JPA repository infrastructure to scan the classpath for this interface and create a Spring bean for it.
 
+* We can also define our own methods. These method names should use special keywords such as “find”, “order” with the name of the variables.
+```
+public interface PersonRepository<P> extends CrudRepository<Person, Long> {
+    List<Person> findByFirstName(String firstName);
+}
+```
+* findByFirstName(String firstName) method returns all entries from table where field first_name equals to firstName.
+* `@Transactional` annotation indicates that the method will be executed in the transaction
+*  repository’s CRUD methods are transactional and the query method is marked with @Transactional(readOnly = true) at the repository interface already
 ## Query methods
 * By default Spring Data JPA will automatically parses the method name and creates a query from it. The query is implemented using the JPA criteria API.
 
