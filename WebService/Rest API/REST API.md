@@ -75,11 +75,11 @@ RESTful web service makes heavy uses of HTTP verbs to determine the operation to
 
 | Http verb| CRUD| Description|
 |----------|-----|------------|
-| POST|CREATE||
-|GET|READ|
-|PUT|UPDATE/REPLACE|
-|PATCH|UPDATE/MODIFY|
-|DELETE|DELETE|
+| POST|CREATE|The POST verb is most-often utilized to **create** new resources. POST is neither safe nor idempotent.|
+|GET|READ|The HTTP GET method is used to **read** (or retrieve) a representation of a resource，GET returns a representation in XML or JSON and an HTTP response code of 200 (OK)|
+|PUT|UPDATE/REPLACE|most-often utilized for **update** capabilities, if you create or update a resource using PUT and then make that same call again, the resource is still there and still has the same state as it did with the first call.
+|PATCH|UPDATE/MODIFY|used for **modify** capabilities.The PATCH request only needs to contain the changes to the resource,PATCH is neither safe nor idempotent
+|DELETE|DELETE|It is used to **delete** a resource identified by a URI.
 
 
 ## Addressing
@@ -91,3 +91,181 @@ RESTful web service makes heavy uses of HTTP verbs to determine the operation to
 
 http://localhost:8080/UserManagement/rest/UserService/users/1
 ```
+---
+
+# Building REST services with Spring
+
+## 1. Dao Layer
+```
+@Entity
+class Employee {
+
+  private @Id @GeneratedValue Long id;
+  private String name;
+  private String role;
+
+  Employee() {}
+
+  Employee(String name, String role) {
+
+    this.name = name;
+    this.role = role;
+  }
+
+  public Long getId() {
+    return this.id;
+  }
+
+  public String getName() {
+    return this.name;
+  }
+
+  public String getRole() {
+    return this.role;
+  }
+
+  public void setId(Long id) {
+    this.id = id;
+  }
+
+  public void setName(String name) {
+    this.name = name;
+  }
+
+  public void setRole(String role) {
+    this.role = role;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+
+    if (this == o)
+      return true;
+    if (!(o instanceof Employee))
+      return false;
+    Employee employee = (Employee) o;
+    return Objects.equals(this.id, employee.id) && Objects.equals(this.name, employee.name)
+        && Objects.equals(this.role, employee.role);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(this.id, this.name, this.role);
+  }
+
+  @Override
+  public String toString() {
+    return "Employee{" + "id=" + this.id + ", name='" + this.name + '\'' + ", role='" + this.role + '\'' + '}';
+  }
+}
+```
+## 2. Repository
+```
+package payroll;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+interface EmployeeRepository extends JpaRepository<Employee, Long> {
+
+}
+```
+
+## 3. Application class
+```
+package payroll;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class PayrollApplication {
+
+  public static void main(String... args) {
+    SpringApplication.run(PayrollApplication.class, args);
+  }
+}
+```
+
+```
+package payroll;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+class LoadDatabase {
+
+  private static final Logger log = LoggerFactory.getLogger(LoadDatabase.class);
+
+  @Bean
+  CommandLineRunner initDatabase(EmployeeRepository repository) {
+
+    return args -> {
+      log.info("Preloading " + repository.save(new Employee("Bilbo Baggins", "burglar")));
+      log.info("Preloading " + repository.save(new Employee("Frodo Baggins", "thief")));
+    };
+  }
+}
+```
+## 4. Controller Layer
+```
+@RestController
+class EmployeeController {
+
+  private final EmployeeRepository repository;
+
+  EmployeeController(EmployeeRepository repository) {
+    this.repository = repository;
+  }
+
+  // Aggregate root
+
+  @GetMapping("/employees")
+  List<Employee> all() {
+    return repository.findAll();
+  }
+
+  @PostMapping("/employees")
+  Employee newEmployee(@RequestBody Employee newEmployee) {
+    return repository.save(newEmployee);
+  }
+
+  // Single item
+
+  @GetMapping("/employees/{id}")
+  Employee one(@PathVariable Long id) {
+
+    return repository.findById(id)
+      .orElseThrow(() -> new EmployeeNotFoundException(id));
+  }
+
+  @PutMapping("/employees/{id}")
+  Employee replaceEmployee(@RequestBody Employee newEmployee, @PathVariable Long id) {
+
+    return repository.findById(id)
+      .map(employee -> {
+        employee.setName(newEmployee.getName());
+        employee.setRole(newEmployee.getRole());
+        return repository.save(employee);
+      })
+      .orElseGet(() -> {
+        newEmployee.setId(id);
+        return repository.save(newEmployee);
+      });
+  }
+
+  @DeleteMapping("/employees/{id}")
+  void deleteEmployee(@PathVariable Long id) {
+    repository.deleteById(id);
+  }
+}
+```
+
+* @RestController indicates that the data returned by each method will be written straight into the response body instead of rendering a template.
+* @GetMapping, @PostMapping, @PutMapping and @DeleteMapping, corresponding to HTTP GET, POST, PUT, and DELETE calls)
+* @RequestHeader:binds request header values to method parameters
+* @ExceptionHandler configures the advice to only respond if an EmployeeNotFoundException is thrown.
+* @RequestBody annotation maps the HttpRequest body to a transfer or domain object,
