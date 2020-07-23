@@ -1,7 +1,13 @@
-AWS
+# AWS
+> A full sevice cloud platform
 
- EC2/ECS
->  ECS is a container service,
+* Online hosting service
+* Deploy web applications
+* Deplou databases
+
+
+## EC2/ECS
+>  Remote VM
 1. Repository or Elastic Container Registry (ECR)： where you store the app image created using docker
 2. Cluster: where AWS runs containers.
 3. Task Definition: where you tells AWS how to create your containers. 
@@ -11,9 +17,10 @@ AWS
 
 In simple words,ECS is a manager while EC2 instances are just like employees. All the employees (EC2) under this manager(ECS) can perform "Docker" tasks and the manager also understands "docker" pretty well. So,whenever you need "docker" resources, you show up to the Manager. Manager already has status from every employee(EC2) decides which one should perform the task.
 
+* EC2 All you get is operating system, you have to manully install other apps
+* Elastic Bennstalk is pre-package platform(PAAS), All you do is deploy your code
 
-
-S3 
+## S3 
 * Simple Storage Service
 * A bucket is a container for objects stored in Amazon S
 * Objects are the fundamental entities stored in Amazon S3. Objects consist of object data and metadata.
@@ -24,7 +31,7 @@ S3
  3. GLACIER for long-term archive.
 * The main difference between Amazon EC2 and S3 is that EC2 is a computing service that allows companies to run servers in the cloud. While S3 is an object storage service used to store and retrieve data from AWS through the Internet. S3 is like a giant hard drive in the cloud, while EC2 offers CPU and RAM in addition to storage
 
-AWS Dynomodb 
+## AWS Dynomodb 
 > Managed NoSQL database service
 
 Tables – Similar to other database systems, DynamoDB stores data in tables. A table is a collection of data. For example, see the example table called People that you could use to store personal contact information about friends, family, or anyone else of interest. You could also have a Cars table to store information about vehicles that people drive.
@@ -36,6 +43,17 @@ Attributes – Each item is composed of one or more attributes. An attribute is 
 
 Primary key: Each item in the table has a unique identifier, or primary key, that distinguishes the item from all of the others in the table. DynamoDB supports two different kinds of primary keys: A simple primary key, composed of one attribute known as the partition key.Referred to as a composite primary key, this type of key is composed of two attributes
 
+## RDS
+> Relational Database Service
+
+Create an Instance
+1. Select an DB engine:  launch database
+2. Choose use case: 
+3. Specify DB detailsL password, username
+
+Configure database
+1. Configure security inbound rule: Edit Source address
+2. Test Connectivty between Workbench and AWS: Edit the hostname of local workbench with endpoint from aws
 
 # Summary
 
