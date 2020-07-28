@@ -46,8 +46,11 @@ The uniform interface constraint defines the interface between clients and serve
 * REST architecture treats every content as a resource. These resources can be Text Files, Html Pages, Images, Videos or Dynamic Business Data.
 * A resource in REST is a similar Object in Object Oriented Programming or is like an Entity in a Database
 * Each resource is identified by URIs/ Global IDs.
-* REST uses various representations to represent a resource where Text, JSON, XML
+* REST uses various representations to represent a resource where Text, JSON, XML.
 
+```
+<protocol>://<service-name>/<ResourceType>/<ResourceID>
+```
 ## Messages/ Resource Methods
 
 * RESTful Web Services make use of HTTP protocols as a medium of communication between client and server.
