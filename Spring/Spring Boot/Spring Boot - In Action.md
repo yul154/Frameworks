@@ -17,7 +17,7 @@
 4. *The Actuator* — Gives you insight into what’s going on inside of a running Spring Boot application.
 
 ###  AUTO-CONFIGURATION
-* In the previous: ritten an application that accesses a relational database with JDBC
+* In the previous: written an application that accesses a relational database with JDBC
 ```
 @Bean // JdbcTemplate
 public JdbcTemplate jdbcTemplate(DataSource dataSource) {
