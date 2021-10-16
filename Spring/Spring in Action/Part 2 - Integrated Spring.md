@@ -254,4 +254,21 @@ private Ingredient addIngredient(Ingredient ingredient) {
 }
 ```
 ---
-3. Sending messages asynchronously
+# 3. Sending messages asynchronously
+1. Asynchronous messaging
+2.Sending messages with JMS, RabbitMQ, and
+Kafka
+3. Pulling messages from a broker
+4. Listening for messages
+
+*Asynchronous messaging* is a way of indirectly sending messages from one application to another without waiting for a response. 
+
+Consider three options that Spring offers for asynchronous messaging: 
+* the Java Message Service (JMS) RabbitMQ 
+* Advanced Mes- sage Queueing Protocol (AMQP)
+* Apache Kafka.
+
+## 3.1 Sending messages with JMS
+成功
+Consider three options that Spring offers for asynchronous messaging: the Java Message Service (JMS), RabbitMQ and Advanced Mes- sage Queueing Protocol (AMQP), and Apache Kafka.暑期
+Consider three options that Spring offers for asynchronous messaging: the Java Message Service (JMS), RabbitMQ and Advanced Mes- sage Queueing Protocol (AMQP), and Apache Kafka.
