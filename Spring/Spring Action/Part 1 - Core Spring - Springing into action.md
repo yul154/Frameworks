@@ -91,3 +91,130 @@ method, then the specified initialization method is called.
 10. If the bean implements the DisposableBean interface, Spring calls its destroy() method. Likewise, if the bean was declared with a destroy-method,
 the specified method is called.
 
+---
+# Wiring beans
+* Declaring beans
+* Injecting constructors and setters
+* Wiring beans
+* Controlling bean creation and destruction
+
+In Spring, objects aren’t responsible for finding or creating the other objects that they need to do their jobs. Instead, the container gives them references to the objects that they collaborate with.
+
+## 2.1 Exploring Spring’s configuration options
+as a developer to tell Spring which beans to create and how to wire them together
+
+* Explicit configuration in XML
+*  Explicit configuration in Java
+* Implicit bean discovery and automatic wiring
+---
+## 2.2 Automatically wiring beans
+
+Spring attacks automatic wiring from two angles:
+* *Component scanning* — Spring automatically discovers beans to be created in the application context.
+* *Autowiring* - Spring automatically satisfies bean dependencies.
+
+### 2.2.1 Creating discoverable beans
+* it keeps the coupling between any CD player implementation and the CD itself to a minimum
+```
+package soundsystem;
+public interface CompactDisc { // an interface that defines a CD.
+  void play();
+}
+
+```
+* implementation of `CompactDisc`
+
+```
+package soundsystem;
+import org.springframework.stereotype.Component;
+@Component
+public class SgtPeppers implements CompactDisc {
+   private String title = "Sgt. Pepper's Lonely Hearts Club Band"; 
+   private String artist = "The Beatles";
+   public void play() {
+        System.out.println("Playing " + title + " by " + artist);
+   } 
+}
+```
+* `@Component`: identifies this class as a component class and serves as a clue to Spring that a bean should be created for the class
+*  `@ComponentScan` : will default to scanning the same package as the configuration class.
+
+### 2.2.2 Naming a component-scanned bean
+Spring given a name for bean from its class name by lowercasing the first letter of the class name.
+
+* If you’d rather give the bean a different ID,
+```
+@Component("lonelyHeartsClub")
+public class SgtPeppers implements CompactDisc
+```
+* Use the `@Named` annotation from the Java Dependency Injection specification  to provide a bean ID
+```
+@Named("lonelyHeartsClub")
+public class SgtPeppers implements CompactDisc
+```
+### 2.2.3 Setting a base package for component scanning
+`@ComponentScan` will default to the configuration class’s package as its base package to scan for components
+
+One common reason for explicitly setting the base package is so that you can keep all of your configuration code in a packag
+```
+@ComponentScan(basePackageClasses={CDPlayer.class, DVDPlayer.class})
+```
+### 2.2.4 Annotating beans to be automatically wired
+ Autowiring is a means of letting Spring automatically satisfy a bean’s dependencies by finding other beans in the application context that are a match to the bean’s needs.
+ 
+`@Autowired`indicate that autowiring should be performed
+ * annotation’s use isn’t limited to constructors.
+ * It can also be used on a property’s setter method
+ * Spring will attempt to satisfy the dependency expressed in the method’s parameters.
+```
+@Autowired//Spring creates the CDPlayer bean, it should instantiate it via that constructor
+public CDPlayer(CompactDisc cd){} // pass in a bean that is assignable to CompactDisc.
+```
+```
+@Autowired
+public void setCompactDisc(CompactDisc cd)
+```
+* If there are no matching beans,, Spring will throw an exception. To avoid that exception, you can set the required attribute on @Autowired to false
+```
+@Autowired(required=false)
+public CDPlayer(CompactDisc cd)
+```
+Spring supports the `@Inject` annotation for autowiring alongside its own `@Autowired`
+---
+## 2.3 Wiring beans with Java
+JavaConfig is the preferred option for explicit configura- tion because it’s more powerful, type-safe, and refactor-friendly
+
+### 2.3.1 Creating a configuration class
+With `@ComponentScan` gone
+* the Config class is ineffective. If you were to run Test now, the test would fail with a `BeanCreationException`
+
+### 2.3.2 Declaring a simple bean
+> creates an instance of the desired type and annotate it with `@Bean`
+```
+@Bean
+public CompactDisc sgtPeppers() {
+  return new SgtPeppers();
+}
+```
+you can either rename the method or prescribe a different name with the name attribut
+```
+@Bean(name="lonelyHeartsClubBand")
+public CompactDisc sgtPeppers()
+```
+### 2.3.3 Injecting with JavaConfig
+The simplest way to wire up beans in JavaConfig is to refer to the referenced bean’s method. 
+```
+@Bean
+public CDPlayer cdPlayer() {
+  return new CDPlayer(sgtPeppers());
+}
+```
+* Spring will intercept any calls to it and ensure that the bean produced by that method is returned rather than allowing it to be invoked again.
+
+Bean as a parameter
+```
+@Bean
+public CDPlayer cdPlayer(CompactDisc compactDisc
+```
+-----
+# 3.Advanced wiring
