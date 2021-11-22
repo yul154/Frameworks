@@ -7,12 +7,10 @@
 
 搭SpringBoot环境的时候,无须各种的配置文件，无须各种繁杂的pom坐标，一个main方法，就能run起来了
 
-@SpringBootApplication等同于下面三个注解：
-
+`@SpringBootApplication`等同于下面三个注解：
 * @SpringBootConfiguration
 * @EnableAutoConfiguration: 这个注解可以帮助我们自动载入应用程序所需要的所有默认配置
 * @ComponentScan
-
 
 其中@EnableAutoConfiguration 代表开启自动装配
 * 注解会去 spring-boot-autoconfigure工程下寻找 META-INF/spring.factories 文件，此文件中列举了所有能够自动装配类的清单，然后自动读取里面的自动装配配置类清单。
@@ -25,9 +23,11 @@
 
 * @AutoConfigurationPackage  ////自动导包 
   * 本身的含义就是将主配置类（@SpringBootApplication 标注的类）所在的包下面所有的组件都扫描到 spring 容器中
-* @Import(AutoConfigurationImportSelector.class) ////自动配置导入选择: 开启自动配置类的导包的选择器 
+* @Import(AutoConfigurationImportSelector.class) //自动配置导入选择: 开启自动配置类的导包的选择器 
     * 将所有需要导入的组件以全类名的方式返回，并添加到容器中，最终会给容器中导入非常多的自动配置类（xxxAutoConfiguration），给容器中导入这个场景需要的所有组件，并配置好这些组件
     * 其导入的`AutoConfigurationImportSelector`的`selectImports()`方法通过`SpringFactoriesLoader.loadFactoryNames()`扫描所有具有META-INF/spring.factories的jar包下面key是EnableAutoConfiguration全名的，所有自动配置类
+    
+    
 * 内部实际上就去加载META-INF/spring.factories文件的信息，然后筛选出以EnableAutoConfiguration为key的数据，加载到IOC容器中，实现自动配置功能！
 * Spring启动的时候会扫描所有jar路径下的META-INF/spring.factories，将其文件包装成Properties对象
 * 从Properties对象获取到key值为EnableAutoConfiguration的数据，然后添加到容器里边
@@ -207,6 +207,14 @@ Spring IoC 的底层实现是基于反射技术
  
 > spring生命周期，几种scope区别，aop实现有哪几种实现，接口代理和类代理会有什么区别
  
+> springboot加载过程，依赖于自动加载
+
+
+
+
+> springboot 怎么实现依赖起步
+Spring Boot通过对常用的依赖进行再一次封装
+* 方便我们引入，简化了 pom.xml 配置，但是更重要的是将依赖的管理交给了 Spring Boot，我们无需关注不同的依赖的不同版本是否存在冲突的问题，
 
 > @Value 和 @ConfigurationProperties 比较
 > @PropertySource
