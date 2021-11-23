@@ -1,16 +1,44 @@
 > Spring 事务失效的原因
 
+> SpringBoot的四个特点
+1. 更快速的构建能力 -> 提供了更多的 Starters 用于快速构建业务框架
+2. 起步依赖 -> 创建 Spring Boot 时可以直接勾选依赖模块，这样在项目初始化时就会把相关依赖直接添加到项目中，大大缩短了查询并添加依赖的时间
+
+> spring boot 启动过程
+
+Spring Boot的启动过程大致可以分为如下2步
+1. 初始化一个SpringApplication对象  -> 为运行SpringApplication实例对象启动环境变量准备以及进行必要的资源构造器的初始化动作
+  * 通过SpringFactoriesLoader找到`spring.factories`文件中配置的`ApplicationContextInitializer``ApplicationListener`
+  * 配置基本的环境变量、资源、构造器和监听器
+2. 执行该对象的run方法,
+ 1. 通过SpringFactoriesLoader查找并加载所有的,SpringApplicationRunListeners 引用启动监控模块
+ 2.  ConfigurableEnvironment, 创建并配置当前应用将要使用的Environment
+ 3. ConfigrableApplicationContext配置应用上下文：包括配置应用上下文对象、配置基本属性和刷新应用上下文  
 
 
+> Spring 起步依賴
 
-> SpringBoot 自动配置原理
+起步依赖本质上是一个Maven项目对象模型（Project Object Model，POM），定义了对其他库的传递依赖，这些东西加在一起即支持某项功能。很多起步依赖的命名都暗示了它们提供的某种或某类功能
 
-搭SpringBoot环境的时候,无须各种的配置文件，无须各种繁杂的pom坐标，一个main方法，就能run起来了
+Spring Boot起步依赖大大简化了项目构建说明中的依赖配置，因为常用的依赖聚合于更粗粒度的依赖。你的构建项目会传递解析到起步依赖中声明的其他依赖。
 
-`@SpringBootApplication`等同于下面三个注解：
-* @SpringBootConfiguration
-* @EnableAutoConfiguration: 这个注解可以帮助我们自动载入应用程序所需要的所有默认配置
-* @ComponentScan
+> SpringBoot 自动配置原理/过程
+
+1. springboot启动时，是依靠启动类的main方法来进行启动的，而main方法中执行的是SpringApplication.run()方法
+2. `SpringApplication.run()`方法中会创建spring的容器，并且刷新容器。而在刷新容器的时候就会去解析启动类，然后就会去解析启动类上的`@SpringBootApplication`注解
+3. `@SpringBootApplication`注解是个复合注解
+   * @SpringBootConfiguration
+   * @EnableAutoConfiguration: 这个注解就是开启自动配置
+   * @ComponentScan
+4.`@EnableAutoConfiguration`注解中又有`@Import`注解引入了一个`AutoConfigurationImportSelector`这个类，这个类会进过一些核心方法，
+5. 然后去扫描我们所有jar包下的META-INF下的spring.factories文件,在这个文件中记录了好多的自动配置类
+6. 而从这个配置文件中取找key为EnableAutoConfiguration类的全路径的值下面的所有配置都加载
+
+```
+SpringBoot在启动的时候会调用run()方法，run()方法会刷新容器，刷新容器的时候，会扫描classpath下面的的包中META-INF/spring.factories文件，
+在这个文件中记录了好多的自动配置类，在刷新容器的时候会将这些自动配置类加载到容器中，然后在根据这些配置类中的条件注解，来判断是否将这些配置类在容器中进行实例化，
+这些条件主要是判断项目是否有相关jar包或是否引入了相关的bean。这样springboot就帮助我们完成了自动装配
+```
 
 其中@EnableAutoConfiguration 代表开启自动装配
 * 注解会去 spring-boot-autoconfigure工程下寻找 META-INF/spring.factories 文件，此文件中列举了所有能够自动装配类的清单，然后自动读取里面的自动装配配置类清单。
@@ -25,19 +53,19 @@
   * 本身的含义就是将主配置类（@SpringBootApplication 标注的类）所在的包下面所有的组件都扫描到 spring 容器中
 * @Import(AutoConfigurationImportSelector.class) //自动配置导入选择: 开启自动配置类的导包的选择器 
     * 将所有需要导入的组件以全类名的方式返回，并添加到容器中，最终会给容器中导入非常多的自动配置类（xxxAutoConfiguration），给容器中导入这个场景需要的所有组件，并配置好这些组件
-    * 其导入的`AutoConfigurationImportSelector`的`selectImports()`方法通过`SpringFactoriesLoader.loadFactoryNames()`扫描所有具有META-INF/spring.factories的jar包下面key是EnableAutoConfiguration全名的，所有自动配置类
-    
-    
-* 内部实际上就去加载META-INF/spring.factories文件的信息，然后筛选出以EnableAutoConfiguration为key的数据，加载到IOC容器中，实现自动配置功能！
-* Spring启动的时候会扫描所有jar路径下的META-INF/spring.factories，将其文件包装成Properties对象
-* 从Properties对象获取到key值为EnableAutoConfiguration的数据，然后添加到容器里边
+    * 其导入的`AutoConfigurationImportSelector`的`selectImports()`方法通过`SpringFactoriesLoader.loadFactoryNames()`扫描所有所有jar包的META-INF/spring.factories
+    * 将这些扫描到的文件转成Properties对象
+    * 只获取了key是`EnableAutoConfiguration.class`的所有自动配置类
 
+> 配置加载顺序
+spring boot 启动会扫描以下位置的application.properties或者application.yml文件作为Spring boot的默认配置文件
 
+1. 类路径下的配置文件
+2. 类路径内config子目录的配置文件
+3. 当前项目根目录下的配置文件
+4. 当前项目根目录下config子目录的配置文件
 
-根据spring.factories配置加载EnableAutoConfiguration
-其中给容器中自动配置添加组件的时候，会从propeties类中获取配置文件中指定这些属性的值。xxxAutoConfiguration：⾃动配置类给容器中添加组件。xxxProperties：封装配置⽂件中相关属性。
-根据@Conditional注解的条件，进行自动配置并将Bean注入Spring容器
-
+SpringBoot配置文件存在一个特性，优先级较高的配置加载顺序比较靠后，相同名称的配置优先级较高的会覆盖掉优先级较低的内容
 
 
 > Spring的三级缓存
@@ -82,7 +110,6 @@ Spring 的设计原则是尽可能保证普通对象创建完成之后，再生�
 如果要使用二级缓存解决循环依赖，意味着所有Bean在实例化后就要完成AOP代理，这样违背了Spring设计的原则，Spring在设计之初就是通过AnnotationAwareAspectJAutoProxyCreator这个后置处理器来在Bean生命周期的最后一步来完成AOP代理，而不是在实例化后就立马进行AOP代理
 
 
-
 考虑代理的情况。
 * 代理的存在,Bean在创建的最后阶段，会检查是否需要创建代理，如果创建了代理，那么最终返回的就是代理实例的引用。我们通过beanname获取到最终是代理实例的引用
 
@@ -105,7 +132,10 @@ Spring 的设计原则是尽可能保证普通对象创建完成之后，再生�
 
 
 
-> Bean 加载机制
+> Bean 的装配过程：
+* BeanDefinitionReader 读取 Resource 所指向的配置文件资源，然后解析配置文件。配置文件中每一个解析成一个 BeanDefinition 对象，并保存到 BeanDefinitionRegistry 中；
+* 容器扫描 BeanDefinitionRegistry 中的BeanDefinition；调用InstantiationStrategy 进行Bean实例化的工作；使用 BeanWrapper 完成Bean属性的设置工作；
+* 单例Bean缓存池：Spring 在DefaultSingletonBeanRegistry类中提供了一个用于缓存单实例 Bean 的缓存器，它是一个用HashMap实现的缓存器，单实例的 Bean 以beanName为键保存在这个HashMap中。
 
 
 > Bean的生命周期
@@ -117,36 +147,36 @@ Spring 创建Bean的过程，大致和对象的初始化有点类似吧。有几
 
 此外：BeanPostProcessor作为一个扩展接口，会穿插在Bean的创建流程中，留下很多钩子，让我们可以去影响Bean的创建过程。其中最主要的就属AOP代理的创建了
 
+> Bean的作用域
+* singleton：单例，只有一个对象
+* prototype：多例，每次都会创建一个新对象
+* request：每次请求都会参数一个对象
+* session：每个session都会产生一个对象
+* global session：所有的session都用一个对象
 
-> SpringBoot 如何固定版本
+每接收到一个Http请求时，将HttpServletRequest和HttpServletResponse封装成一个ServletRequestAttributes 绑定到RequestContextHolder的ThreadLocal变量中
 
+> Spring 主要思想
 
-> SpringBoot 配置文件注入
+* IOC(DI): Inversion of Control (控制反转/反转控制)，指的是关于对象的创建和管理的控制权反转了;依赖别人者不会因被依赖者改变而改变，达到了高度的松耦合
+* AOP:把前后的这些与业务逻辑无关的代码剝離，实现原有方法业务内容不变，前后进行增强的模式
 
-> Spring AOP
-
+> Spring AOP的作用
 
 在程序开发中主要用来解决一些系统层面上的问题，比如日志，事务，权限等待
 就是把一些系统的业务比如日志管理，事务管理等变成横向切面，将其跟核心业务逻辑代码分开，使代码比较简洁。等到要用到这个切面的时候，就把它织入到目标对象中成代理对象，实际上操作的是代理对象。 采用横向抽取机制，取代了传统纵向继承体系重复性代码。
 
 将日志记录，性能统计，安全控制，事务处理，异常处理等代码从业务逻辑代码中划分出来，通过对这些行为的分离，我们希望可以将它们独立到非指导业务逻辑的方法中，进而改变这些行为的时候不影响业务逻辑的代码
 
-你写了个方法用来做一些事情，但这个事情要求登录用户才能做，你就可以在这个方法执行前验证一下，执行后记录下操作日志，把前后的这些与业务逻辑无关的代码抽取出来放一个类里，这个类就是切面（Aspect），这个被环绕的方法就是切点（Pointcut），你所做的执行前执行后的这些方法统一叫做增强处理（Advice
+你写了个方法用来做一些事情，但这个事情要求登录 用户才能做，你就可以在这个方法执行前验证一下，执行后记录下操作日志，把前后的这些与业务逻辑无关的代码抽取出来放一个类里，这个类就是切面（Aspect），这个被环绕的方法就是切点（Pointcut），你所做的执行前执行后的这些方法统一叫做增强处理（Advice
 
 
-AOP原理
+>  AOP原理
 
 动态代理技术，综合运用两种代理模式
 基于Jdk实现InvocationHandler 底层使用反射技术
 基于CGLIB实现 字节码技术
 创建代理时，如果有接口则执行jdk动态代理，否则执行cglib动态代理。
-
-利用@EnableAspectJAutoProxy注解增强
-
-为其他对象提供一种代理以控制对这个对象的访问，在不修改被代理对象的基础上，通过扩展代理类，进行一些功能的附加与增强。值得注意的是，代理类和被代理类应该共同实现一个接口，或者是共同继承某个类。
-
-自己手写代理类就是静态代理。手写代理类也有两种思路，一是通过继承被代理类的方式实现其子，重写父类方法；二是与被代理类实现共同的一个接口，尴尬的一点是被代理类未必会有接口。
-动态代理就是交给程序去自动生成代理类，即基于接口的JDK动态代理和基于继承的cglib动态代理。
 
 JDK
 1.定义一个实现接口InvocationHandler的类
@@ -164,31 +194,37 @@ CGlib
 1. 定义一个实现了MethodInterceptor接口的类
 2. 实现其intercept()方法，在其中调用proxy.invokeSuper( )
 
-JDK跟CGLIB的区别，CGLIB可不可以代理JDK代理代理的类,cglib可以代理jdk代理的类吗
+> JDK跟CGLIB的区别，CGLIB可不可以代理JDK代理代理的类,cglib可以代理jdk代理的类吗
+
+* jdk动态代理只可以代理接口，因为最后的实现类要继承Proxy并实现该接口
+* cglib既可代理接口又可以代理实现类，都是通过实现该接口和factory接口或继承了实现类并实现了factory接口
+
+> 代理模式
+
+为其他对象提供一种代理以控制对这个对象的访问，在不修改被代理对象的基础上，通过扩展代理类，进行一些功能的附加与增强。值得注意的是，代理类和被代理类应该共同实现一个接口，或者是共同继承某个类。
+
+1. 接口：原有方法实现了接口，我也写一个类实现接口，方法重写，在内容中回调原有方法，并在回调前后进行增强。
+2. 继承：父类实现了方法，我编写一个子类重写父类的方法，同样在内容中回调原有方法（保证原有业务逻辑不变），并在回调前后进行增强。
+
+
 
 > 静态代理和动态代理的区别：
 
-静态代理：自己编写创建代理类，然后再进行编译，而且是在编译器就已经确定被代理的对象 在程序运行前，代理类的.class文件就已经存在了。 
-代理使客户端不需要知道实现类是什么，怎么做的，而客户端只需知道代理即可,
-每个代理类只能为一个接口服务，这样程序开发中必然会产生许多的代理类
 
+静态代理
+*  自己编写创建代理类，然后再进行编译，而且是在编译器就已经确定被代理的对象 在程序运行前，代理类的.class文件就已经存在了
+*  代理使客户端不需要知道实现类是什么，怎么做的，而客户端只需知道代理即可,静态代理事先知道要代理的是什么，而动态代理不知道要代理什么东西
+*  每个代理类只能为一个接口服务，这样程序开发中必然会产生许多的代理类
 
-所以我们就会想办法可以通过一个代理类完成全部的代理功能，那么我们就需要用动态代理
-动态代理：动态代理是在运行时，通过反射机制实现动态代理，并且能够代理各种类型的对象
-在Java中要想实现动态代理机制，需要java.lang.reflect.InvocationHandler接口和 java.lang.reflect.Proxy 类的支持
-
-在实现阶段不用关心代理谁，而在运行阶段（通过反射机制）才指定代理哪一个对象。
-
-
-动态代理与静态代理相比较，最大的好处是接口中声明的所有方法都被转移到调用处理器一个集中的方法中处理（InvocationHandler.invoke）。这样，在接口方法数量比较多的时候，我们可以进行灵活处理，而不需要像静态代理那样每一个方法进行中转。而且动态代理的应用使我们的类职责更加单一，复用性更强
-
-
+动态代理
+* 动态代理是在运行时，通过反射机制实现动态代理，
+* 并且能够代理各种类型的对象
+* 可以通过一个代理类完成全部的代理功能,能够代理各种类型的对象
+* 在Java中要想实现动态代理机制，需要java.lang.reflect.InvocationHandler接口和 java.lang.reflect.Proxy 类的支持
+* 最大的好处是接口中声明的所有方法都被转移到调用处理器一个集中的方法中处理（InvocationHandler.invoke）。这样，在接口方法数量比较多的时候，我们可以进行灵活处理，而不需要像静态代理那样每一个方法进行中转。而且动态代理的应用使我们的类职责更加单一，复用性更强
 
 
 > Spring IOC
-
-这个容器说白了就是把你放在里面的对象（Bean）进行统一管理，你不用考虑对象如何创建如何销毁，从这方面来说，所谓的控制反转就是获取对象的方式被反转了。既然你都把对象交给人家Spring管理了，那你需要的时候不得给人家要呀。这就是依赖注入（DI）！再想下，我们在传入一个参数的时候除了在构造方法中就是在setter方法中，换个好听的名字就是构造注入和设值注入
-
 
 某一个接口具体实现类的选择控制权从调用类中移除，转交给第三方决定，在 Spring 容器中是由 Bean 配置来进行控制的
 
@@ -202,6 +238,29 @@ Spring IoC 的底层实现是基于反射技术
 * 在调用类需要使用其他类的时候，不再通过调用类自己实现，而是通过 IoC 容器进行注入。
 
 
+> Spring 究竟是如何知道哪些对象是需要管理的呢？如何进行管理的呢？又是如何进行注入的呢？
+
+* Spring 通过一个配置文件或注解来描述 Bean 和 Bean 之间的依赖关系
+* 根据Bean配置信息在容器内部创建Bean定义注册表，根据注册表加载、实例化 Bean、建立Bean与Bean之间的依赖关系，
+* 还提供了 Bean 实例缓存、生命周期管理、Bean 实例代理、事件发布、资源装载等高级服务
+
+
+> BeanFactory 和 ApplicationContext 有什么区别
+
+* BeanFactory 可以理解为含有 bean 集合的工厂类。BeanFactory 包含了种 bean 的定义，以便在接收到客户端请求时将对应的bean 实例化。
+  * BeanFactory 还能在实例化对象的时生成协作类之间的关系。此举将 bean 自身与 bean 客户端的配置中解放出来。BeanFactory 还包含了 bean 生命周期的控制，调用客户端的初始化方法（initialization methods）和销毁方法（destruction methods）。
+
+* 从表面上看，application context 如同 bean factory 一样具有 bean 定义、bean 关联关系的设置，根据请求分发bean 的功能。但 application context 在此基础上还提供了其他的功能。
+ * 提供了支持国际化的文本消息
+ * 统一的资源文件读取方式
+ *  已在监听器中注册的 bean 的事件
+
+* BeanFactory 在启动的时候不会去实例化 Bean，中有从容器中拿 Bean 的时候才会去实例化，ApplicationContext 在启动的时候就把所有的 Bean 全部实例化了。它还可以为 Bean 配置 lazy-init=true 来让 Bean 延迟实例化；
+
+* BeanFacotry 是 spring 中比较原始的 Factory，无法支持 spring 的许多插件，如 AOP 功能、Web 应用等。 ApplicationContext接口
+
+
+
 > MVC中，@RequestMapping的实现原理？这边没有了解过，询问了你来设计会怎么设计？url与接口的怎么完成注册？怎么根据url匹配到接口？如果匹配到多个接口，如果选择？
  
 > Spring中的ioc和aop，ioc的注解有哪些，autowired和resource有什么区别，作用域有哪些，autowired如何配置两个类中的一个。
@@ -209,9 +268,6 @@ Spring IoC 的底层实现是基于反射技术
 > spring生命周期，几种scope区别，aop实现有哪几种实现，接口代理和类代理会有什么区别
  
 > springboot加载过程，依赖于自动加载
-
-
-
 
 > springboot 怎么实现依赖起步
 Spring Boot通过对常用的依赖进行再一次封装
