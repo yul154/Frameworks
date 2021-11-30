@@ -102,3 +102,43 @@ Design principles for software system
 
 ----
 # Data Models and Query Languages
+
+How is it represented in terms of the next-lower layer?
+* Application : model it in terms of objects or data structures. Those structures are often specific to your application.
+* Store data: Express them in terms of a general-purpose data model, such as JSON or XML documents, tables in a relational database, or a graph model
+* representing that JSON/XML data in terms of bytes in hardware : allow the data to be queried, searched, manipulated, and processed 
+* represent bytes in terms of electrical currents, pulses of light, magnetic fields, and more.
+
+| Data model type| Implementation|
+|----------------|---------------|
+|Relational DB|MYSQL, MS SQL, IBM DB2, Postgre SQL, SQLite|
+|Document DB| Cassandra, HBase, Google Spanner, RethinkDb, Mongo  DB|
+|Graph Db| Neo4j, Titan, InfiniteGraph, Cypher,AllegroGraph|
+
+## Relational Model 
+>  Organized into relations (called tables in SQL), where each relation is an unordered collection of tuples (rows in SQL).
+Relational databases
+* transaction processing (entering sales or banking trans‐ actions, airline reservations, stock-keeping in warehouses) 
+* batch processing (customer invoicing, payroll, reporting).
+
+NoSQL
+* A need for greater scalability,including very large datasets or very high write throughput
+*  a more dynamic and expressive data model
+
+**The Object-Relational Mismatch**
+
+impedance mismatch : The disconnect between the models is sometimes called an impedance mismatch.
+
+**One-to-many relationship AND Many-to-Many relationship**
+* self-contained document: The JSON representation has better locality than the multi-table schema
+* Store the text directly, you are duplicating the human-meaningful information in every record that uses i
+*    Removing such duplication is the key idea behind normalization in databases.
+
+
+### Relational Versus Document Databases Today
+
+Cocument Databases
+* The main arguments in favor of the document data model are schema flexibility, bet‐ ter performance due to locality,
+* A document-like structure(a tree of one-to- many relationships, where typically the entire tree is loaded at once),then it’s probably use a document model.
+* cannot refer directly to a nested item within a document
+* poor support for joins in document databases
