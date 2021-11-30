@@ -1,3 +1,14 @@
+> Spring MVC的流程
+
+1. 用户向服务端发送一次请求，这个请求会先到前端控制器DispatcherServlet(也叫中央控制器)。
+2. DispatcherServlet接收到请求后会调用HandlerMapping处理器映射器。由此得知，该请求该由哪个Controller来处理（并未调用Controller，只是得知）
+3. DispatcherServlet调用HandlerAdapter处理器适配器，告诉处理器适配器应该要去执行哪个Controller
+4. HandlerAdapter处理器适配器去执行Controller并得到ModelAndView(数据和视图)，并层层返回给DispatcherServlet
+5. DispatcherServlet将ModelAndView交给ViewReslover视图解析器解析，然后返回真正的视图。
+6. DispatcherServlet将模型数据填充到视图中
+7. DispatcherServlet将结果响应给用户
+
+
 > Spring 事务失效的原因
 
 > SpringBoot的四个特点
@@ -126,6 +137,7 @@ Spring 的设计原则是尽可能保证普通对象创建完成之后，再生�
 
 
 > 为啥Spring不能解决“A的构造方法中依赖了B的实例对象，同时B的构造方法中依赖了A的实例对象”这类问题了
+
 * 构造方法注入的方式，将实例化与初始化并在一起完成，能够快速创建一个可直接使用的对象，但它没法处理循环依赖的问题，了解就好
 * setter 方法注入的方式，是在对象实例化完成之后，再通过反射调用对象的 setter 方法完成属性的赋值，能够处理循环依赖的问题，
 因为加入singletonFactories三级缓存的前提是执行了构造器，所以构造器的循环依赖没法解决。
