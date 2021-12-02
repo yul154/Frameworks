@@ -1,12 +1,15 @@
 > Spring MVC的流程
 
 1. 用户向服务端发送一次请求，这个请求会先到前端控制器DispatcherServlet(也叫中央控制器)。
-2. DispatcherServlet接收到请求后会调用HandlerMapping处理器映射器。由此得知，该请求该由哪个Controller来处理（并未调用Controller，只是得知）
-3. DispatcherServlet调用HandlerAdapter处理器适配器，告诉处理器适配器应该要去执行哪个Controller
-4. HandlerAdapter处理器适配器去执行Controller并得到ModelAndView(数据和视图)，并层层返回给DispatcherServlet
-5. DispatcherServlet将ModelAndView交给ViewReslover视图解析器解析，然后返回真正的视图。
-6. DispatcherServlet将模型数据填充到视图中
-7. DispatcherServlet将结果响应给用户
+2. DispatcherServlet接收到请求后会调用HandlerMapping处理器映射器。
+3. 处理器映射器找到具体的处理器(可以根据xml配置、注解进行查找)，生成处理器对象及处理器拦截器(如果有则生成)一并返回给DispatcherServlet。
+4. DispatcherServlet调用HandlerAdapter处理器适配器，告诉处理器适配器应该要去执行哪个Controller
+5. Controller执行完成返回ModelAndView。
+6. HandlerAdapter将controller执行结果ModelAndView返回给DispatcherServlet。
+7. DispatcherServlet将ModelAndView交给ViewReslover视图解析器解析，
+8. ViewReslover解析后返回具体View
+9. DispatcherServlet将模型数据填充到视图中
+10. DispatcherServlet将结果响应给用户
 
 
 > Spring 事务失效的原因
