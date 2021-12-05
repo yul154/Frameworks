@@ -39,7 +39,6 @@
 |需要高性能的地方使用Redis|不需要高性能的地方使用MySQL.一般都是配合使用，存储数据在MySQL和Redis之间做同步|
 
 
-
 > 为什么Redis这么快？
 * 采用了多路复用io阻塞机制: 只有单个线程(一个快递员)，通过跟踪每个I/O流的状态(每个快递的送达地点)，来管理多个I/O流
 * 数据结构简单，操作节省时间
@@ -67,16 +66,35 @@
 *  redis的io模型主要是基于epoll实现的，不过它也提供了 select和kqueue的实现，默认采用epoll。
 
 ## Redis使用场景
-* 内存存储和持久化：支持异步将内存中的数据写到硬盘上，同时不影响继续服务
-* 取最新N个数据的操作如：可以将最新的10条评论的ID放在Redis的List集合里面
+
 * 缓存：缓存现在几乎是所有中大型网站都在用的必杀技，合理的利用缓存不仅能够提升网站访问速度，还能大大降低数据库的压力。Redis提供了键过期功能，也提供了灵活的键淘汰策略；
+
 * 排行榜： 很多网站都有排行榜应用的，如京东的月度销量榜单、商品按时间的上新排行榜等。Redis提供的有序集合数据类构能实现各种复杂的排行榜应用。
+
 * 计数器：电商网站商品的浏览量、视频网站视频的播放数等。为了保证数据实时效，每次浏览都得给+1，并发量高时如果每次都请求数据库操作无疑是种挑战和压力。Redis提供的incr命令来实现计数器功能，内存操作，性能非常好
+
 * 分布式锁：在很多互联网公司中都使用了分布式技术，分布式技术带来的技术挑战是对同一个资源的并发访问，如全局ID、减库存、秒杀等场景，并发量不大的场景可以使用数据库的悲观锁、乐观锁来实现，但在并发量高的场合中，利用数据库锁来控制资源的并发访问是不太理想的，大大影响了数据库的性能。可以利用Redis的setnx功能来编写分布式的锁，如果设置返回1说明获取锁成功，否则获取锁失败，
+
 * 最新列表：Redis列表结构，LPUSH可以在列表头部插入一个内容ID作为关键字，LTRIM可用来限制列表的数量，这样列表永远为N个ID，无需查询最新的列表，直接根据ID去到对应的内容页即可
+
 * 分布式会话：集群模式下，在应用不多的情况下一般使用容器自带的session复制功能就能满足，当应用增多相对复杂的系统中，一般都会搭建以Redis等内存数据库为中心的session服务，session不再由容器管理，而是由session服务及内存数据库管理。
+
 * 消息系统：消息队列是大型网站必用中间件，如ActiveMQ、RabbitMQ、Kafka等流行的消息队列中间件，主要用于业务解耦、流量削峰及异步处理实时性低的业务。Redis提供了发布/订阅及阻塞队列功能，能实现一个简单的消息队列系统.
+
 * 社交网络：点赞、踩、关注/被关注、共同好友等是社交网站的基本功能，社交网站的访问量通常来说比较大，而且传统的关系数据库类型不适合存储这种类型的数据，Redis提供的哈希、集合等数据结构能很方便的的实现这些功能。
+
+```
+一般而言在使用 Redis 进行存储的时候，我们需要从以下几个方面来考虑：
+
+**业务数据常用吗？命中率如何？**如果命中率很低，就没有必要写入缓存；
+**该业务数据是读操作多，还是写操作多？**如果写操作多，频繁需要写入数据库，也没有必要使用缓存；
+**业务数据大小如何？**如果要存储几百兆字节的文件，会给缓存带来很大的压力，这样也没有必要；
+```
+
+```
+高速读/写的场合
+在某一个瞬间或者是某一个短暂的时刻有成千上万的请求到达服务器，如果单纯的使用数据库来进行处理，就算不崩，也会很慢的，轻则造成用户体验极差用户量流失，重则数据库瘫痪，服务宕机，而这样的场合都是不允许的！
+```
 
 
 ## 为什么Redis这么快？
@@ -86,40 +104,287 @@
 
 
 ## 简述一下Redis值的五种类型
-* String 整数，浮点数或者字符串
-  * set/get/decr/incr/mget
-  * 普通的key/value存储都可以归为此类
-  * String在redis内部存储默认就是一个字符串
-  * 当遇到incr、decr等操作时会转成数值型进行计算
-  * 一般做一些复杂的计数功能的缓存
-* Set 集合
-  * sadd/spop/smembers/sunion
-  * Redis set对外提供的功能与list类似是一个列表的功能，特殊之处在于set是可以自动排重的
-  * 并且set提供了判断某个成员是否在一个set集合内的重要接口
-  * set 的内部实现是一个 value永远为null的HashMap
-  * 利用交集、并集、差集等操作，可以计算共同喜好，全部的喜好，自己独有的喜好等功能
-* Zset 有序集合
-  * zadd/zrange/zrem/zcard
-  * sorted set可以通过用户额外提供一个优先级(score)的参数来为成员排序
-  * 插入有序的，即自动排序
-  * twitter 的public timeline可以以发表时间作为score来存储，这样获取时就是自动按时间排好序的
-  * 可以做排行榜应用，取TOP N操作
-  * Redis sorted set的内部使用HashMap和跳跃表(SkipList)来保证数据的存储和有序
-    * HashMap里放的是成员到score的映射，而跳跃表里存放的是所有的成员
-    * 排序依据是HashMap里存的score,
-    * 使用跳跃表的结构可以获得比较高的查找效率 
-* Hash 散列表
-  * hget/hset/hgetall
-  * 存储一个用户信息对象数据，其中包括用户ID、用户姓名、年龄和生日，通过用户ID我们希望获取该用户的姓名或者年龄或者生日
-  * Redis的Hash实际是内部存储的Value为一个HashMap，并提供了直接存取这个Map成员的接口
-  * Key是用户ID, value是一个Map。这个Map的key是成员的属性名，value是属性值
-  * 通过 key(用户ID) + field(属性标签) 就可以操作对应属性数据
-  * 博主在做单点登录的时候，就是用这种数据结构存储用户信息，以cookieId作为key
-* List 列表
-  *  lpush/rpush/lpop/rpop/lrange
-  *  twitter的关注列表，粉丝列表等都可以用Redis的list结构
-  *  Redis list的实现为一个双向链表，即可以支持反向查找和遍历，更方便操作，不过带来了部分额外的内存开销
-  *  可以做简单的消息队列的功能。另外还有一个就是，可以利用lrange命令，做基于redis的分页功能
+
+**首先对redis来说，所有的key（键）都是字符串。我们在谈基础数据结构时，讨论的是存储值的数据类型**
+
+**redis中并没有直接使用以上所说的各种数据结构来实现键值数据库，而是基于一种对象，对象底层再间接的引用上文所说的具体的数据结构**
+
+<img width="449" alt="Screen Shot 2021-12-05 at 10 45 10 PM" src="https://user-images.githubusercontent.com/27160394/144751423-67464484-6bbb-42c0-8db9-8c61664e4e86.png">
+
+|结构类型|值|结构的读写能力|
+|-------|--|-----------|
+|String|整数，浮点数或者字符串|对整个字符串或字符串的一部分进行操作；对整数或浮点数进行自增或自减操作|
+|Set|包含字符串的无序集合|字符串的集合，包含基础的方法有看是否存在添加、获取、删除；还包含计算交集、并集、差集等|
+|List|一个双向链表,每个节点都包含一个字符串|对链表的两端进行push和pop操作，读取单个或多个元素；根据值查找或删除元素|
+|Zset|和散列一样，用于存储键值对|字符串成员与浮点数分数之间的有序映射,元素的排列顺序由分数的大小决定；包含方法有添加、获取、删除单个元素以及根据分值范围或成员来获取元素|
+|Hash|包含键值对的无序散列表|包含方法有添加、获取、删除单个元素|
+
+### String 整数，浮点数或者字符串
+
+* 普通的key/value存储都可以归为此类,可以是字符串、整数或浮点数
+* String在redis内部存储默认就是一个字符串
+* 当遇到incr、decr等操作时会转成数值型进行计算
+* 对整数或浮点数进行自增或自减操作,一般做一些复杂的计数功能的缓存
+
+
+|命令|简述|使用|
+|---|----|----|
+|`GET`|获取存储在给定键中的值|`GET name`|
+|`SET `|设置存储在给定键中的值|`SET name value`
+|`DEL`| 删除存储在给定键中的值|`DEL name`
+|`INCR`|将键存储的值加1|`INCR key`|
+|`DECR` | 将键存储的值减1| `DECR key`|
+|`INCRBY`| 将键存储的值加上整数| `INCRBY key amount`| 
+|`DECRBY`|将键存储的值减去整数| `DECRBY key amount`| 
+
+
+```
+127.0.0.1:6379> set hello world
+OK
+127.0.0.1:6379> get hello
+"world"
+
+127.0.0.1:6379> get counter
+"2"
+127.0.0.1:6379> incr counter
+(integer) 3
+127.0.0.1:6379> get counter
+"3"
+```
+
+**业务场景**
+* 缓存： 经典使用场景，把常用信息，字符串，图片或者视频等信息放到redis中，redis作为缓存层，mysql做持久化层，降低mysql的读写压力。 
+* 计数器：redis是单线程模型，一个命令执行完才会执行下一个，同时数据可以一步落地到其他的数据源。 
+* session：常见方案spring session + redis实现session共享， ¶
+
+> 底层实现
+
+<img width="306" alt="Screen Shot 2021-12-05 at 11 56 19 PM" src="https://user-images.githubusercontent.com/27160394/144753797-1ae5551e-e750-4e92-8965-15aa00f1894f.png">
+
+redis中所有场景中出现的字符串，基本都是由SDS(simple dynamic string)来实现的
+
+<img width="348" alt="Screen Shot 2021-12-05 at 11 28 15 PM" src="https://user-images.githubusercontent.com/27160394/144752886-89eae101-fde9-42dd-a23e-ec83387449b6.png">
+
+* free:还剩多少空间
+* len:字符串长度
+* buf:存放的字符数组
+
+空间预分配
+* 为减少修改字符串带来的内存重分配次数，sds采用了“一次管够”的策略
+* 若修改之后sds长度小于1MB,则多分配现有len长度的空间
+* 若修改之后sds长度大于等于1MB，则扩充除了满足修改之后的长度外，额外多1MB空间
+
+惰性空间释放
+* 为避免缩短字符串时候的内存重分配操作，sds在数据减少时，并不立刻释放空间。
+
+
+### Set 集合
+> Redis 的 Set 是 String 类型的无序无重集合
+
+* 并且set提供了判断某个成员是否在一个set集合内的重要接口
+* set 的内部实现是一个 value永远为null的HashMap
+* 利用交集、并集、差集等操作，可以计算共同喜好，全部的喜好，自己独有的喜好等功能
+
+|命令|简述|使用|
+|---|----|----|
+|`SADD`|向集合添加一个或多个成员|`SADD key value`|
+|`SCARD`|获取集合的成员数|`SCARD key`| 
+|`SMEMBER`|返回集合中的所有成员|`SMEMBER key member`|
+|`SISMEMBER`|判断 member 元素是否是集合 key 的成员|`SISMEMBER key member`|
+
+```
+著作权归https://pdai.tech所有。
+链接：https://pdai.tech/md/db/nosql-redis/db-redis-data-types.html
+
+127.0.0.1:6379> sadd myset hao hao1 xiaohao hao
+(integer) 3
+127.0.0.1:6379> smember myset
+1) "xiaohao"
+2) "hao1"
+3) "hao"
+127.0.0.1:6379> sismember myset hao
+(integer) 1
+```
+**实战场景**
+* 标签（tag）,给用户添加标签，或者用户给消息添加标签，这样有同一标签或者类似标签的可以给推荐关注的事或者关注的人。
+* 点赞，或点踩，收藏等，可以放到set中实现
+
+<img width="304" alt="Screen Shot 2021-12-05 at 11 58 49 PM" src="https://user-images.githubusercontent.com/27160394/144753848-bd739375-118b-4008-b10e-4c6ffba031f8.png">
+
+> 底层实现
+
+intset是集合键的底层实现方式之一。
+
+### Zset 有序集合
+> 不同的是每个元素都会关联一个 double 类型的分数。redis 正是通过分数来为集合中的成员进行从小到大的排序
+
+* 和散列一样，用于存储键值对,字符串成员与浮点数分数之间的有序映射；元素的排列顺序由分数的大小决定
+* sorted set可以通过用户额外提供一个优先级(score)的参数来为成员排序
+* 插入有序的，即自动排序
+* twitter 的public timeline可以以发表时间作为score来存储，这样获取时就是自动按时间排好序的
+* 可以做排行榜应用，取TOP N操作
+* Redis sorted set的内部使用HashMap和跳跃表(SkipList)来保证数据的存储和有序
+  * HashMap里放的是成员到score的映射，而跳跃表里存放的是所有的成员
+  * 排序依据是HashMap里存的score,
+  * 使用跳跃表的结构可以获得比较高的查找效率 
+
+
+|命令|简述|使用|
+|---|----|----|
+|`ZADD`|将一个带有给定分值的成员添加到哦有序集合里面|`ZADD zset-key 178 member1`|
+|`ZRANGE`| 根据元素在有序集合中所处的位置，从有序集合中获取多个元素|`ZRANGE zset-key 0-1 withccores`|
+|`ZREM`| 如果给定元素成员存在于有序集合中，那么就移除这个元素 |`ZREM zset-key member1`|
+
+```
+
+127.0.0.1:6379> zadd myscoreset 100 hao 90 xiaohao
+(integer) 2
+127.0.0.1:6379> ZRANGE myscoreset 0 -1
+1) "xiaohao"
+2) "hao"
+127.0.0.1:6379> ZSCORE myscoreset hao
+"100"
+```
+
+**实战场景**
+* 排行榜：有序集合经典使用场景。例如小说视频等网站需要对用户上传的小说视频做排行榜，榜单可以按照用户关注数，更新时间，字数等打分，做排行
+
+
+> 底层实现
+
+ziplist：它是由连续的内存块组成的
+
+<img width="433" alt="Screen Shot 2021-12-05 at 11 37 28 PM" src="https://user-images.githubusercontent.com/27160394/144753206-eb4c83a4-8ae0-4f08-a839-c5e36d687c30.png">
+
+**entry**
+* previous_entry_length字段，他的长度要么都是1个字节，要么都是5个字节：
+* 前一节点的长度小于254字节，则previous_entry_length长度为1字节
+* 前一节点的长度小于254字节，则previous_entry_length长度为5字节
+<img width="426" alt="Screen Shot 2021-12-05 at 11 38 23 PM" src="https://user-images.githubusercontent.com/27160394/144753231-164243bd-2d8c-48b8-9e18-ea7be12ce9d4.png">
+
+1.元素的遍历
+2.再根据ziplist节点元素中的previous_entry_length属性，来逐个遍历
+
+<img width="304" alt="Screen Shot 2021-12-05 at 11 59 26 PM" src="https://user-images.githubusercontent.com/27160394/144753876-affad56b-4c69-459d-9499-3ddbf8d7cdca.png">
+
+### Hash 散列表
+> Redis hash 是一个 string 类型的 field（字段） 和 value（值） 的映射表，hash 特别适合用于存储对象。
+
+* 存储一个用户信息对象数据，其中包括用户ID、用户姓名、年龄和生日，通过用户ID我们希望获取该用户的姓名或者年龄或者生日
+* Redis的Hash实际是内部存储的Value为一个HashMap，并提供了直接存取这个Map成员的接口
+* Key是用户ID, value是一个Map。这个Map的key是成员的属性名，value是属性值
+* 通过 key(用户ID) + field(属性标签) 就可以操作对应属性数据
+* 博主在做单点登录的时候，就是用这种数据结构存储用户信息，以cookieId作为key
+
+|命令|简述|使用|
+|---|----|----|
+|`HSET`| 添加键值对|`HSET hash-key sub-key1 value1`|
+|`HGET`|获取指定散列键的值 |`HGET hash-key key1`|
+|`HGETALL`| 获取散列中包含的所有键值对 |`HGETALL hash-key`|
+|`HDEL`|如果给定键存在于散列中，那么就移除这个键 | `HDEL hash-key sub-key1`|
+
+```
+127.0.0.1:6379> hset user name1 hao
+(integer) 1
+127.0.0.1:6379> hset user email1 hao@163.com
+(integer) 1
+127.0.0.1:6379> hgetall user
+1) "name1"
+2) "hao"
+3) "email1"
+4) "hao@163.com"
+127.0.0.1:6379> hget user user
+(nil)
+127.0.0.1:6379> hget user name1
+```
+
+**实战场景**
+* 缓存： 能直观，相比string更节省空间，的维护缓存信息，如用户信息，视频信息等。
+
+
+
+### Hash 散列表是怎么扩容的
+
+<img width="320" alt="Screen Shot 2021-12-06 at 12 00 01 AM" src="https://user-images.githubusercontent.com/27160394/144753887-d04a2e83-34fe-4dba-9049-124e0c578361.png">
+
+* redis的哈希表的制作使用的是拉链法
+
+<img width="543" alt="Screen Shot 2021-12-05 at 11 50 37 PM" src="https://user-images.githubusercontent.com/27160394/144753624-097f14bb-3af1-4431-af2f-ea89540197a6.png">
+
+**rehash**
+统筹”部分，其中有两个关键的属性：ht和rehashidx。
+* rehashidx指的是现在rehash的元素位置
+* ht是一个数组有且只有俩元素ht[0]和ht[1];其中，
+  * ht[0]存放的是redis中使用的哈希表，
+  * ht[1]和rehashidx和哈希表的rehash有关
+
+**扩容和收缩标准**
+扩容：
+* 没有执行BGSAVE和BGREWRITEAOF指令的情况下，哈希表的加载因子大于等于1。
+* 正在执行BGSAVE和BGREWRITEAOF指令的情况下，哈希表的加载因子大于等于5。
+
+收缩:
+* 加载因子小于0.1时，程序自动开始对哈希表进行收缩操作
+
+扩容和收缩的数量
+扩容：
+* 第一个大于等于ht[0].used * 2的2^n(2的n次方幂)。
+收缩：
+* 第一个大于等于ht[0].used的2^n(2的n次方幂)
+
+渐进式refresh:
+1. 将ht[0]中的数据利用哈希函数重新计算
+2. rehash到ht[1]
+
+```
+统筹”部分中的rehashidx密切相关
+* rehashidx 的数值就是现在rehash的元素位置
+* rehashidx 等于 -1 的时候说明没有在进行refresh
+```
+
+###  List 列表
+
+*  一个链表，链表上的每个节点都包含一个字符串
+*  Redis list的实现为一个双向链表，即可以支持反向查找和遍历，更方便操作，不过带来了部分额外的内存开销
+*  可以做简单的消息队列的功能。另外还有一个就是，可以利用lrange命令，做基于redis的分页功能
+*  Twitter的关注列表，粉丝列表等都可以用Redis的list结构
+
+
+|命令|简述|使用|
+|---|----|----|
+|`RPUSH`|将给定值推入到列表右端|`RPUSH key value`|
+|`LPUSH`|将给定值推入到列表左端|`LPUSH key value`|
+|`RPOP`|从列表的右端弹出一个值，并返回被弹出的值| `RPOP key`|
+|`LPOP`|从列表的左端弹出一个值，并返回被弹出的值|`LPOP key`|
+|`LRANGE`|获取列表在给定范围上的所有值|`LRANGE key 0 -1`|
+|`LINDEX`|通过索引获取列表中的元素。你也可以使用负数下标以 -1 表示列表的最后一个元素， -2 表示列表的倒数第二个元素，以此类推|`LINEX key index`| 
+
+```
+127.0.0.1:6379> lpush mylist 1 2 ll ls mem
+(integer) 5
+127.0.0.1:6379> lrange mylist 0 -1
+1) "mem"
+2) "ls"
+3) "ll"
+4) "2"
+5) "1"
+127.0.0.1:6379> lindex mylist -1
+"1"
+127.0.0.1:6379> lindex mylist 10        # index不在 mylist 的区间范围内
+(nil)
+```
+
+**实战场景**
+* 微博TimeLine: 有人发布微博，用lpush加入时间轴，展示新的列表信息。
+* 消息队列
+
+> 底层实现
+一部分是“统筹部分”：橘黄色，一部分是“具体实施方“：蓝色。
+<img width="407" alt="Screen Shot 2021-12-05 at 11 32 10 PM" src="https://user-images.githubusercontent.com/27160394/144753014-538cc70f-1723-4ffb-809f-1490c59a79fc.png">
+
+* head指向具体双向链表的头
+* tail指向具体双向链表的尾
+* len双向链表的长度
 
 
 ## redis的过期策略以及内存淘汰机制
@@ -146,6 +411,7 @@ redis采用的是定期删除+惰性删除策略
   * allkeys-lru从所有数据集中挑选最近最少使用的数据淘汰
   * allkeys-random从所有数据集中任意选择数据进行淘汰
   * noeviction :新写入操作会报错。应该没人用吧
+ 
 ----
 # 如何保持mysql和redis中数据的一致性？
 
@@ -217,6 +483,11 @@ RDB持久化是指将某个时间点的所有数据都存放到硬盘上
 * 由于需要经常fork子线程来进行备份操作，如果数据量很大的话，fork比较耗时，如果cpu性能不够，服务器可能是卡顿。属于数据量大的时候，一个服务器不要部署多个Redis服务。
 
 > 创建快照有以下5种形式
+1. 客户端发送`BGSAVE`指令，服务端会fork一条子线程将快照写入磁盘
+2. 客户端发送`SAVE`指令，服务端在主线程进行写入动作。一般不常使用，一般在内存不够去执行`BGSAVE`的时候才用
+3. 设置了SAVE配置项，如SAVE 300 100，那么当“300秒内有100次写入”时，Redus会自动触发BGSAVE命令。如果有多个配置项，任意一个满足，都会触发备份
+4. `SHUTDOWN`命令接收到关闭服务器的请求、或者TERM信号时，会执行SAVE命令，这时候会阻塞所有客户端，不在执行客户端发送的任何命令
+5. 一个Redis服务器连接另外一个Redis服务器，并像对方发送`SYNC`命令开始一次复制操作时，如果主服务器目前没有在执行`BGSAVE`操作，或者主服务器刚刚执行完，那么主服务器就会执行`GBSAVE`
 
 
 ### AOF
@@ -237,7 +508,6 @@ RDB持久化是指将某个时间点的所有数据都存放到硬盘上
 * 对于同样的数据集，AOF文件通常要大于RDB文件
 * AOF可能比RDB要慢，这取决于fsync策略。通常fsync设置为每秒一次的话性能仍然很高，如果关闭sfync，即使在很高的负载下也和RDB一样快。不过，即使在很大的写负载情况下，RDB还是能提供很好的最大延迟保证
 * AOF通过递增的方式更新数据，而RDB快照是从头开始创建，RDB会更健壮和稳定（所以适用于备份）
-
 
 ---
 
