@@ -137,8 +137,131 @@ impedance mismatch : The disconnect between the models is sometimes called an im
 
 ### Relational Versus Document Databases Today
 
-Cocument Databases
-* The main arguments in favor of the document data model are schema flexibility, bet‐ ter performance due to locality,
+Document Databases
+* The main arguments in favor of the document data model are schema flexibility, better performance due to locality,
 * A document-like structure(a tree of one-to- many relationships, where typically the entire tree is loaded at once),then it’s probably use a document model.
 * cannot refer directly to a nested item within a document
 * poor support for joins in document databases
+* A document is usually stored as a single continuous string, encoded as JSON, XML, or a binary variant thereof (such as MongoDB’s BSON).
+* The locality advantage only applies if you need large parts of the document at the same time.
+
+Convergence of document and relational databases
+* Most relational database systems (other than MySQL) have supported XML 
+
+
+## Query Languages for Data
+* SQL is a declarative query language, 
+  * In a declarative query language, like SQL or relational algebra, you just specify the pattern of the data you want, what conditions the results must meet 
+  * it also hides imple‐ mentation details of the database engine, 
+* IMS and CODASYL queried the database using imperative code. 
+  * An imperative language tells the computer to perform certain operations in a certain order.
+  * stepping through the code line by line, evaluating conditions, updating variables, and deciding whether to go around the loop one more time
+
+
+
+**Declarative Queries on the Web**
+* The advantages of declarative query languages are not limited to just databases.
+* it has more advantage  to locate  elemennt  and make change
+
+**MapReduce Querying**
+* MapReduce is neither a declarative query language nor a fully imperative query API but somewhere in between
+* the logic of the query is expressed with snippets of code, which are called repeatedly by the processing framework. 
+* It is based on the map (also known as collect) and reduce (also known as fold or inject) function
+* restriction: They must be pure functions, which means they only use the data that is passed to them as input, they cannot perform additional database queries, and they must not have any side effects. 
+
+### Graph-Like Data Models
+*  one-to-many relationships (tree-structured data) or no relationships between records, the document model is appropriate.
+*  The relational model can handle simple cases of many-to-many relationships, but as the connections within your data become more complex
+
+A graph consists of two kinds of objects: 
+* vertices (also known as nodes or entities) 
+* edges (also known as relationships or arcs).
+
+#### Property Graphs
+In the property graph model, each vertex consists of:
+• A unique identifier
+• A set of outgoing edges
+• A set of incoming edges
+• A collection of properties (key-value pairs)
+
+Each edge consists of:
+* A unique identifier
+* The vertex at which the edge starts (the tail vertex)
+* he vertex at which the edge ends (the head vertex)
+* A label to describe the kind of relationship between the two vertices
+* A collection of properties (key-value pairs)
+
+Some important aspects of this model
+*  Any vertex can have an edge connecting it with any other vertex. There is no schema that restricts which kinds of things can or cannot be associated.
+*  Given any vertex, you can efficiently find both its incoming and its outgoing edges, and thus traverse the graph
+*  By using different labels for different kinds of relationships, you can store several different kinds of information in a single graph, while still maintaining a clean data model.
+
+**The Cypher Query Language**
+*find the names of all the people who emigrated from the United States to Europe.*
+
+> find all the vertices that have a BORN_IN edge to a location within the US, and also a LIVING_IN edge to a location within Europe,
+```
+Each vertex is given a symbolic name like USA or Idaho, and other parts of the query can use those names to create edges between the vertices
+
+CREATE
+  (NAmerica:Location {name:'North America', type:'continent'}),
+  (USA:Location      {name:'United States', type:'country'  }),
+  (Idaho:Location    {name:'Idaho',         type:'state'    }),
+  (Lucy:Person       {name:'Lucy' }),
+(Idaho) -[:WITHIN]-> (USA) -[:WITHIN]-> (NAmerica), (Lucy) -[:BORN_IN]-> (Idaho)
+
+
+MATCH
+(person) -[:BORN_IN]-> () -[:WITHIN*0..]-> (us:Location {name:'United States'}),
+(person) -[:LIVES_IN]-> () -[:WITHIN*0..]-> (eu:Location {name:'Europe'}) RETURN person.name
+
+```
+
+**Graph Queries in SQL**
+*  graph data can be represented in a relational database.
+*  but more complex
+
+#### Triple-Stores and SPARQL
+In a triple-store, all information is stored in the form of very simple three-part statements: 
+* subject
+* predicate
+* object
+
+The subject of a triple is equivalent to a vertex in a graph. The object is one of two things:
+* A value in a primitive datatype, such as a string or a number. In that case, the predicate and object of the triple are equivalent to the key and value of a property on the subject verte
+* Another vertex in the graph. In that case, the predicate is an edge in the graph, the subject is the tail vertex, and the object is the head vertex.
+
+**The semantic web**
+* publish information as machine-readable data for computers to read
+* The Resource Description Framework (RDF)  was intended as a mechanism for different websites to publish data in a consistent format,
+ * allowing data from different websites to be automatically combined into a web of data
+ * a kind of internet-wide “database of everything
+
+**The RDF data model**
+* RDF is also written in an XML format, which does the same thing much more verbosely—see 
+* Turtle/N3 is preferable as it is much easier on the eyes
+
+**The SPARQL query language**
+* SPARQL is a query language for triple-stores using the RDF data mode
+
+```
+Graph Databases Compared to the Network Model
+* In CODASYL, a database had a schema that specified which record type could be nested within which other record type. In a graph database, there is no such restriction: any vertex can have an edge to any other vertex. 
+* In CODASYL, the only way to reach a particular record was to traverse one of the access paths to it. In a graph database, you can refer directly to any vertex by its unique ID, or you can use an index to find vertices with a particular value.
+* In CODASYL, the children of a record were an ordered set, so the database had to maintain that ordering (which had consequences for the storage layout). In a graph database, vertices and edges are not ordered
+*  In CODASYL, all queries were imperative, difficult to write and easily broken by changes in the schema. In a graph database, you can write your traversal in imperative code if you want to, but most graph databases also support high-level, declarative query languages such as Cypher or SPARQL
+```
+
+### The Foundation: Datalog
+*  write it as predicate(subject, object).
+*  Datalog is a subset of Prolog
+```
+name(namerica, 'North America').
+type(namerica, continent).
+```
+
+## Summary
+*  Data started out being represented as one big tree (the hierarchical model), but that wasn’t good for representing many-to-many relationships, so the relational model was invented 
+*  Document databases target use cases where data comes in self-contained docu‐ ments and relationships between one document and another are rare
+*  Graph databases go in the opposite direction, targeting use cases where anything is potentially related to everything.
+*  Document and graph databases have in common is that they typically don’t enforce a schema for the data they store, which can make it easier to adapt applications to changing requirements.
