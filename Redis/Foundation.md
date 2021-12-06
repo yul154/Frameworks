@@ -155,7 +155,7 @@ OK
 **业务场景**
 * 缓存： 经典使用场景，把常用信息，字符串，图片或者视频等信息放到redis中，redis作为缓存层，mysql做持久化层，降低mysql的读写压力。 
 * 计数器：redis是单线程模型，一个命令执行完才会执行下一个，同时数据可以一步落地到其他的数据源。 
-* session：常见方案spring session + redis实现session共享， ¶
+* session：常见方案spring session + redis实现session共享，
 
 > 底层实现
 
@@ -301,8 +301,6 @@ ziplist：它是由连续的内存块组成的
 **实战场景**
 * 缓存： 能直观，相比string更节省空间，的维护缓存信息，如用户信息，视频信息等。
 
-
-
 ### Hash 散列表是怎么扩容的
 
 <img width="320" alt="Screen Shot 2021-12-06 at 12 00 01 AM" src="https://user-images.githubusercontent.com/27160394/144753887-d04a2e83-34fe-4dba-9049-124e0c578361.png">
@@ -387,6 +385,8 @@ ziplist：它是由连续的内存块组成的
 * len双向链表的长度
 
 
+
+----
 ## redis的过期策略以及内存淘汰机制
 
 * 惰性删除：当读/写一个已经过期的key时，会触发惰性删除策略，直接删除掉这个过期key，很明显，这是被动的。
