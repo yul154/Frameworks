@@ -265,3 +265,83 @@ type(namerica, continent).
 *  Document databases target use cases where data comes in self-contained docu‐ ments and relationships between one document and another are rare
 *  Graph databases go in the opposite direction, targeting use cases where anything is potentially related to everything.
 *  Document and graph databases have in common is that they typically don’t enforce a schema for the data they store, which can make it easier to adapt applications to changing requirements.
+-----
+# Storage and Retrieval
+
+the world’s simplest database, implemented as two Bash functions:
+```
+#!/bin/bash
+db_set () {
+echo "$1,$2" >> database
+}
+db_get () {
+grep "^$1," database | sed -e "s/^$1,//" | tail -n 1
+```
+* Every call to `db_set` appends to the end of the file
+* Update a key several times, the old versions of the value are not overwritten
+  * you need to look at the last occurrence of a key in a file to find the latest valu
+* `db_get` has to scan the entire database file from beginning to end, looking for occurrences of the key. In algorithmic terms, the cost of a lookup is O(n)
+
+
+In order to efficiently find the value for a particular key in the database, we need a different data structure: an index. 
+* An index is an additional structure that is derived from the primary data
+* This is an important trade-off in storage systems: well-chosen indexes speed up read queries, but every index slows down writes
+
+## Hash Indexes
+
+keep an in-memory hash map where every key is mapped to a byte offset in the data file—the location at which the value can be found
+
+how do we avoid eventually running out of disk space? 
+* break the log into segments of a certain size by closing a segment file when it reaches a certain size,
+* making subsequent writes to a new segment file.
+* perform compaction on these segments,Compaction means throwing away duplicate keys in the log, and keeping only the most recent update for each key
+
+File format
+* It’s faster and simpler to use a binary format that first encodes the length of a string in bytes, followed by the raw string
+
+Crash recovery
+* If the database is restarted, the in-memory hash maps are lost. 
+*  speeds up recovery by storing a snapshot of each segment’s hash map on disk, which can be loaded into mem‐ ory more quickly.
+
+An append-only design turns out to be good fo
+*  Appending and segment merging are sequential write operations, which are gen‐ erally much faster than random writes,
+*  Concurrency and crash recovery are much simpler if segment files are append- only or immutable
+*  Merging old segments avoids the problem of data files getting fragmented over time.
+
+
+Hash table index also has limitations:
+* The hash table must fit in memory, so if you have a very large number of keys, you’re out of luck.
+* Range queries are not efficient.
+
+## SSTables and LSM-Trees
+
+Sorted String Table, or SSTable for short that the sequence of key-value pairs is sorted by key.
+1. Merging segments is simple and efficient,
+2. In order to find a particular key in the file, you no longer need to keep an index of all the keys in memory.
+
+### Constructing and maintaining SSTables
+
+Storage engine work as follows:
+ *  When a write comes in, add it to an in-memory balanced tree data structure (forexample, a red-black tree). This in-memory tree is sometimes called a memtable.
+ *  When the memtable gets bigger than some threshold—typically a few megabytes —write it out to disk as an SSTable file.
+ *  In order to serve a read request, first try to find the key in the memtable, then in the most recent on-disk segment
+ *  run a merging and compaction process in the background to combine segment files and to discard overwritten or deleted values.
+
+
+if the database crashes, the most recent writes (which are in the memtable but not yet written out to disk) are lost. 
+ * keep a separate log on disk to which every write is immediately appended,
+
+**Performance optimizations**
+```
+A Bloom filter is a memory-efficient data structure for approximating the contents of a set. It can tell you if a key does not appear in the database, and thus saves many unnecessary disk reads for nonexistent keys.
+```
+
+when looking up keys that do not exist in the database: you have to check the memtable, then the segments all the way back to the oldest (possibly having to read from disk for each one) before you can be sure that the key does not exist. In order to optimize this kind of access, storage engines often use additional Bloom filters 
+
+
+## B-Trees
+
+In order to make the database resilient to crashes, it is common for B-tree implementations to include an additional data structure on disk: a write-ahead log 
+```
+(WAL, also known as a redo log). This is an append-only file to which every B-tree modification must be written before it can be applied to the pages of the tree itself. When the data‐ base comes back up after a crash, this log is used to restore the B-tree back to a con‐ sistent state
+```
