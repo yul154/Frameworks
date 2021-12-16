@@ -1,13 +1,18 @@
 MessageQueue
-- Kafka 基本构架
-  - 深入构架
-    - 文件存储
+- Why Message Queue
+- FrameWork
+
+
+Kafka 
+ - 基本概念
+ - 深入构架
+  - 文件存储
     - 生产者
       - 分区策略
       - 数据可靠性保证 - Exactly Once
     - 消费者
       - 
-- Kafka 单点配置 
+ - Kafka 单点配置 
 
 -----
 # Message Queue
@@ -37,48 +42,111 @@ MessageQueue
 
 
 ----
+
 # Kafka基础架构
-
-
 
 <img width="698" alt="Screen Shot 2021-12-15 at 10 12 22 AM" src="https://user-images.githubusercontent.com/27160394/146110381-a86a21e3-14e5-4b37-b5af-fca1351649ec.png">
 
 * Producer：消息生产者，就是向kafka broker发消息的客户端；
 * Consumer：消息消费者，向kafka broker取消息的客户端；
-* Consumer Group(CG)：消费者组，由多个consumer组成。消费者组内每个消费者负责消费不同分区的数据，一个分区只能由一个消费者消费；消费者组之间互不影响。所有的消费者都属于某个消费者组，即消费者组是逻辑上的一个订阅者。
-* Broker: 一台kafka服务器就是一个broker 可以看作是一个独立的 Kafka 实例.多个 Kafka Broker 组成一个 Kafka Cluster,一个集群由多个broker组成。一个broker可以容纳多个topic,可以看作是一个独立的 Kafka 实例。
-* Topic: 可以理解为一个队列，生产者和消费者面向的都是一个topic；
-* Partition: 一个topic可以分为多个partition，同一 Topic 下的 Partition 可以分布在不同的 Broker 上.一个非常大的topic可以分布到多个broker（即服务器）上. 每个partition是一个有序的队列.
-* Replica 副本，为保证集群中的某个节点发生故障时，该节点上的partition数据不丢失，且kafka仍然能够继续工作，kafka提供了副本机制，一个topic的每个分区都有若干个副本，一个leader和若干个follower
+  * Consumer Group(CG):由多个consumer组成。消费者组内每个消费者负责消费不同分区的数据，一个分区只能由一个消费者消费；消费者组之间互不影响。所有的消费者都属于某个消费者组，即消费者组是逻辑上的一个订阅者。
+  
+* Topic: 消息以主题（Topic）来分类，每一个主题都对应一个消息队列,可以有多个生产者往同一个队列(topic)丢数据，多个消费者往同一个队列(topic)拿数据;(相当于数据库里边表的概念)
+* Partition: Partition 属于 Topic 的一部分, 一个topic可以分为多个partition
+    * 同一 Topic下的Partition 可以分布在不同的 Broker 上.
+    * 每个partition是一个有序的队列.
+
+* Broker: 一台kafka服务器就是一个broker,可以看作是一个独立的 Kafka 实例.
+    * 一个集群由多个broker组成,其中集群内某个 Broker 会成为集群控制器（Cluster Controller),这个 Broker 也称为这个分区的 Leader
+    * 一个broker可以容纳多个topic,
+    * 一个topic会分为多个partition，实际上partition会分布在不同的broker中
+   
+* Replica 副本，为保证集群中的某个节点发生故障时，该节点上的partition数据不丢失，且kafka仍然能够继续工作，kafka提供了副本机制，
+  * 一个topic的每个分区都有若干个副本，一个leader和若干个follower
   * Leader 每个分区多个副本的“主”，生产者发送数据的对象，以及消费者消费数据的对象都是leader。
-  * Follower 每个分区多个副本中的“从”，实时从leader中同步数据，保持和leader数据的同步。leader发生故障时，某个follower会成为新的followe
+  * Follower 每个分区多个副本中的“从”，实时从leader中同步数据，保持和leader数据的同步。leader发生故障时，某个follower会成为新的leader
+  * 生产者和消费者只与 leader 副本交互
+
+
+> Kafka 的多分区（Partition）以及多副本（Replica）机制有什么好处呢？
+
+1. Kafka 通过给特定 Topic 指定多个 Partition, 而各个 Partition 可以分布在不同的 Broker 上, 这样便能提供比较好的并发能力（负载均衡）
+2. Partition 可以指定对应的 Replica 数, 这也极大地提高了消息存储的安全性, 提高了容灾能力，不过也相应的增加了所需要的存储空间
 
 ---
-# 架构深入
+# Kafka 的设计与实现
 
-## Kafka 文件存储
-
-<img width="965" alt="Screen Shot 2021-12-15 at 10 40 29 AM" src="https://user-images.githubusercontent.com/27160394/146113075-4c945289-6c69-48c8-913b-355cbc4b7d79.png">
+<img width="565" alt="Screen Shot 2021-12-15 at 10 40 29 AM" src="https://user-images.githubusercontent.com/27160394/146113075-4c945289-6c69-48c8-913b-355cbc4b7d79.png">
 
 * topic: 消息是以 topic 进行分类的，生产者生产消息，消费者消费消息，都是面向 topic 的。
   * topic 是逻辑上的概念,而partition 是物理上的概念，每个partition对应于一个log文件，该log文件中存储的就是producer生产的数据,Producer 生产的数据会被不断追加到该 log 文件末端
 * offset: 每条数据都有自己的 offset。消费者组中的每个消费者，都会实时记录自己消费到了哪个 offset，以便出错恢复时，从上次的位置继续消费
 
+
+## Kafka 文件存储
+
+Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系统来存储和缓存消息
+
 <img width="651" alt="Screen Shot 2021-12-15 at 10 42 59 AM" src="https://user-images.githubusercontent.com/27160394/146113321-b20f8375-5975-4f51-a2f5-bf569038dcf4.png">
 
-由于生产者生产的消息会不断追加到 log 文件末尾，为防止 log 文件过大导致数据定位效率低下，Kafka 采取了分片和索引机制，
+任何发布到 Partition 的消息都会被追加到 log 文件的尾部，这样的顺序写磁盘操作让 Kafka 的效率非常高
+* 为防止log文件过大导致数据定位效率低下，Kafka 采取了分片和索引机制，
   * 将每个 partition 分为多个 segment。
-  * 每个 segment 对应两个文件——“.index”文件和 “.log” 文件。
-  * 这些文件位于一个文件夹下，该文件夹的命名规则为：topic 名称 + 分区序号,`first-0,first-1,first-2`
-  * index和log文件以当前 segment 的第一条消息的 offset 命名。`00000000000000170410.index, 00000000000000170410.log`
-     * log 文件存储大量的数据
-     * index 文件存储大量的索引信息.
-         * 索引文件中的元数据指向对应数据文件中message 的物理偏移地址。 
+  * 每个 segment 对应两个文件——“.index”文件和 “.log” 文件
+  * Segment 是 Kafka 文件存储的最小单位
+ 
+```
+| --topic1-0
+    | --00000000000000000000.index
+    | --00000000000000000000.log
+    | --00000000000000368769.index
+    | --00000000000000368769.log
+    | --00000000000000737337.index
+    | --00000000000000737337.log
+    | --00000000000001105814.index
+    | --00000000000001105814.log
+| --topic2-0
+| --topic2-1
+```
+ 
+数据文件和索引位于一个文件夹下
+* 该文件夹的命名规则为：topic 名称 + 分区序号,`first-0,first-1,first-2`
+* index和log文件以当前 segment 的第一条消息的 offset 命名。`00000000000000170410.index, 00000000000000170410.log` 
+  * log 文件存储大量的数据
+   * index 文件存储大量的索引信息.
+       * 索引文件中的元数据指向对应数据文件中message的物理偏移地址。 
+    
+```
+因为其文件名为上一个 Segment 最后一条消息的 offset
+* 所以当需要查找一个指定 offset 的 message 时，通过在所有 segment 的文件名中进行二分查找就能找到它归属的 segment ，
+* 再在其 index 文件中找到其对应到文件上的物理位置，就能拿出该 message 。
+```
+
+
+>  Kafka 是如何准确的知道 message 的偏移的呢？这是因为在 Kafka 定义了标准的数据存储结构，在 Partition 中的每一条 message 都包含了以下三个属性：
+>  * offset：表示 message 在当前 Partition 中的偏移量，是一个逻辑上的值，唯一确定了 Partition 中的一条 message，可以简单的认为是一个 id；
+>  * MessageSize：表示 message 内容 data 的大小；
+>  * data：message 的具体内容
 
 
 ## Kafka 生产者
 
+*生产者写消息的基本流程*
+
+1. 创建一个ProducerRecord : 这个对象需要包含消息的主题（topic）和值(value),可以选择性指定一个键值（key）或者分区（partition）。
+2. 对这个对象进行序列化 : 因为 Kafka 的消息需要从客户端传到服务端，涉及到网络传输，所以需要实现序列
+3. 发送到分配器(partitioner): 如果我们指定了分区，那么分配器返回该分区即可；否则，分配器将会基于键值来选择一个分区并返回。
+5. 生产者知道了消息所属的主题和分区，发送这条记录到相同主题和分区的批量消息中(不是直接被发送到服务端，而是放入了生产者的一个缓存里面),在这个缓存里面，多条消息会被封装成为一个批次（batch）
+6. `Sender`线程启动以后会从缓存里面去获取可以发送的批次,`Sender`线程把一个一个批次发送到broker
+7. 当broker接收到消息后，如果成功写入则返回一个包含消息的主题、分区及位移的RecordMetadata对象，否则返回异常。
+8. 生产者接收到结果后，对于异常可能会进行重试。
+
+<img width="583" alt="Screen Shot 2021-12-16 at 10 59 46 AM" src="https://user-images.githubusercontent.com/27160394/146300209-2804c334-a0a2-4e1c-beae-0aa9ba6c3c29.png">
+
+
 ### 分区策略
+
+数据存在不同的partition上，那kafka就把这些partition做备份。比如，现在我们有三个partition，分别存在三台broker上。每个partition都会备份，这些备份散落在不同的broker上
 
 分区的原因
 * 方便在集群中扩展，每个 Partition 可以通过调整以适应他所在的机器，而一个 topic 可以有多个 Partition 组成，因此这个集群就可以适应任意大小的数据了；
@@ -91,6 +159,7 @@ MessageQueue
   * 既没有partition值有没有key值的情况下，第一次调用时随机生成一个整数(后面调用在这个整数上自增)，将这个值的 topic 可用的 partition 总数取余得到 partition 值，也就是常说的 Round Robin（轮询调度）算法。
   
  
+ 
 ### 数据可靠性保证
 
 * ISR：in-sync replics，每个分区(Partition)中同步的副本列表。
@@ -98,7 +167,6 @@ MessageQueue
 * LEO：Log End Offset，Leader中最新消息的Offset。
 * Committed Message：已提交消息，已经被所有ISR同步的消息。
 * Lagging Message：没有达到所有ISR同步的消息。
-
 
 
 1. 为保证 producer 发送的数据，能可靠的发送到指定的 topic
@@ -155,11 +223,11 @@ leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leade
 * 开启幂等性的Producer在初始化的时候会被分配一个`PID`，发往同一`Partition`的消息会附带 Sequence Number。而 Broker端会对做缓存，当具有相同主键的消息提交时，Broker 只会持久化一条
 * PID重启就会变化，同时不同的 Partition 也具有不同主键，所以幂等性无法保证跨分区跨会话的 Exactly Once
 
----
-# Kafka 消费者
+----
+#  Kafka 消费者
 
 ## 消费方式
-> consumer 采用`pull`模式从 broker 中读取数据。
+> Kafka consumer 采用`pull`模式从 broker 中读取数据。
 
 
 * push : 从Broker 推向Consumer，即Consumer 被动的接收消息,由Broker 来主导消息的发送
@@ -168,14 +236,14 @@ leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leade
   * 
 * pull : 指的是 Consumer 主动向 Broker 请求拉取消息，即 Broker 被动的发送消息给 Consumer
   * pull 模式则可以根据 consumer 的消费能力以适当的速率消费消息。
+  * pull 模式可简化 broker 的设计
   * 如果 kafka 没有数据，消费者可能会陷入循环中，一直返回空数据
     * Kafka 的消费者在消费数据时会传入一个时长参数`timeout`，如果当前没有数据可供消费，consumer 会等待一段时间之后再返回，这段时长即为 timeout。
 
-## 分区分配策略
-哪个 partition 由哪个 consumer 来消费
-* 一个 consumer group 中有多个 consumer
-*  一个 topic 有多个 partition
 
+
+## 分区分配策略
+> 哪个 partition 由哪个 consumer 来消费
 
 Kafka 有两种分配策略，
 * RoundRobin : 根据 partition 号对 consumer 个数取模后轮循分配
@@ -186,8 +254,38 @@ Kafka 有两种分配策略，
 <img width="240" alt="Screen Shot 2021-12-15 at 12 40 33 PM" src="https://user-images.githubusercontent.com/27160394/146124398-23c2bad6-7ede-4877-9ee7-8f368d171ab6.png">
 
 
-
 > 在订阅多个 partition 时 range 会有不均匀问题，kafka 默认为 range，因为不考虑多 partition 订阅时，range 效率更高。
+
+
+#### 分区重平衡
+> 当消费者离开消费组（比如重启、宕机等）时，它所消费的分区会分配给其他分区。这种现象称为重平衡(rebalance)
+
+在重平衡期间，所有消费者都不能消费消息，因此会造成整个消费组短暂的不可用
+
+
+消费者通过定期发送心跳（hearbeat）到一个作为组协调者(group coordinator)的broker来保持在消费组内存活。
+* 这个 broker 不是固定的，每个消费组都可能不同
+* 当消费者拉取消息或者提交时，便会发送心跳。
+* 如果消费者超过一定时间没有发送心跳，那么它的会话（session）就会过期，组协调者会认为该消费者已经宕机，然后触发重平衡。
+* 从消费者宕机到会话过期是有一定时间的，这段时间内该消费者的分区都不能进行消息消费；
+  *  通常情况下，我们可以进行优雅关闭，这样消费者会发送离开的消息到组协调者，这样组协调者可以立即进行重平衡而不需要等待会话过期
+  *  将发送心跳与拉取消息进行分离，这样使得发送心跳的频率不受拉取的频率影响
+  *  一个消费者多长时间不拉取消息但仍然保持存活，这个配置可以避免活锁（livelock）(活锁，是指应用没有故障但是由于某些原因不能进一步消费)
+
+
+
+### Partition 被消费
+
+>  Consumer Group 在消费时需要从不同的 Partition 获取消息，那最终如何重建出 Topic 中消息的顺序呢?
+
+没有办法。Kafka 只会保证在 Partition 内消息是有序的
+
+> Partition 中的消息可以被（不同的 Consumer Group）多次消费，那 Partition中被消费的消息是何时删除的？Partition 又是如何知道一个 Consumer Group 当前消费的位置呢？
+
+无论消息是否被消费，除非消息到期 Partition 从不删除消息。例如设置保留时间为 2 天，则消息发布 2 天内任何 Group 都可以消费，2 天后，消息自动被删除。
+Partition 会为每个 Consumer Group 保存一个偏移量，记录 Group 消费到的位置
+
+
 
 
 ## offset 的维护
@@ -204,6 +302,8 @@ exclude.internal.topics=false
 ```
 bin/kafkabin/kafka--consoleconsole--consumer.sh consumer.sh ----topic __consumer_offsets topic __consumer_offsets ----zookeeper zookeeper hadoophadoop102102:2181 :2181 ----formatter formatter
 ```
+
+
 
 ## Kafka 高效读写数据
 ### 1. 顺序写磁盘
@@ -236,248 +336,5 @@ Kafka 的 producer 生产数据，要写入到 log 文件中，写的过程是�
 对于 Consumer 而言，事务的保证就会相对较弱，尤其时无法保证 Commit 的信息被精确消费。这是由于 Consumer 可以通过 offset 访问任意信息，而且不同的 Segment File 生命周期不同，同一事务的消息可能会出现重启后被删除的情况。
 ```
 ---
-# Kafka API
 
-## Producer API
-
-**消息发送流程**
-* Kafka 的 Producer 发送消息采用的是异步发送的方式。
-* 在消息发送的过程中，涉及到线程
-  * main 线程
-  * Sender 线程
-  * 一个线程共享变量——RecordAccumulator（接收器）。
-* main 线程将消息发送给 RecordAccumulator，Sender 线程不断从 RecordAccumulator 中拉取消息发送到 Kafka broker
-
-<img width="561" alt="Screen Shot 2021-12-15 at 1 05 51 PM" src="https://user-images.githubusercontent.com/27160394/146126724-91d4893b-ce57-4d88-901f-8aa9283c15c4.png">
-
-### 异步发送 API
-```
-<dependency>
-    <groupId>org.apache.kafka</groupId>
-    <artifactId>kafka-clients</artifactId>
-    <version>0.11.0.0</version>
-</dependency>
-
-```
-
-* `KafkaProducer` 需要创建一个生产者对象，用来发送数据
-* `ProducerConfig` 获取所需的一系列配置参数
-* `ProducerRecord` 每条数据都要封装成一个 ProducerRecord 对象
-
-1. 不带回调函数的异步（AsyncProducer）
-```
-Properties props = new Properties();
-props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-        "hadoop101:9092,hadoop102:9092,hadoop103:9092");
-props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-        StringSerializer.class.getName());
-props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-        StringSerializer.class.getName());
-props.put(ProducerConfig.ACKS_CONFIG, "all");
-props.put(ProducerConfig.RETRIES_CONFIG, 1);
-props.put(ProducerConfig.LINGER_MS_CONFIG, 1);
-// 配置拦截器
-
-// 通过配置创建 KafkaProducer 对象
-KafkaProducer<String, String> producer = new KafkaProducer<>(props);
-for (int i = 0; i < 1000; i++) {
-    ProducerRecord<String, String> record = new ProducerRecord<>("first", "message" + i);
-    producer.send(record);
-}
-producer.close();
-}
-```
-2. 带回调函数的异步（CallbackProducer）
-
-```
-Properties props = new Properties();
-props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-        "192.168.72.133:9092");
-props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-        StringSerializer.class.getName());
-props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-        StringSerializer.class.getName());
-props.put(ProducerConfig.ACKS_CONFIG, "all");
-props.put(ProducerConfig.RETRIES_CONFIG, 1);
-KafkaProducer<String, String> producer = new KafkaProducer<>(props);
-
-for (int i = 0; i < 1000; i++) {
-    ProducerRecord<String, String> record = new ProducerRecord<>("first", "message" + i);
-    producer.send(record, new Callback() {
-        @Override
-        public void onCompletion(RecordMetadata recordMetadata, Exception e) {
-            if (e == null)
-                System.out.println("success:" + recordMetadata.topic() +
-                        "-" + recordMetadata.partition() +
-                        "-" + recordMetadata.offset());
-            else e.printStackTrace();
-        }
-    });
-
-  }
-  producer.close();
-}
-```
-
-
-### 同步发送 API
-同步发送（SyncProducer）
-```
- Properties props = new Properties();
-// 添加配置
-props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "hadoop101:9092,hadoop102:9092,hadoop103:9092");
-props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-props.put(ProducerConfig.ACKS_CONFIG, "all");
-props.put(ProducerConfig.RETRIES_CONFIG, 1); // 重试次数
-props.put(ProducerConfig.LINGER_MS_CONFIG, 500);
-// 通过已有配置创建 kafkaProducer 对象
-KafkaProducer<String, String> producer = new KafkaProducer<>(props);
-// 循环调用 send 方法不断发送数据
-for (int i = 0; i < 100; i++) {
-    ProducerRecord<String, String> record = new ProducerRecord<>("first", "message" + i);
-    RecordMetadata metadata = producer.send(record).get();// 通过 get()方法实现同步效果
-    if (metadata != null)
-        System.out.println("success:" + metadata.topic() + "-" +
-                metadata.partition() + "-" + metadata.offset());
-}
-producer.close(); // 关闭生产者对象
-}
-```
-
-## Consumer API
-
-offset 的维护
-
-### 1.自动提交 offset
-```
-<dependency>
-    <groupId>org.apache.kafka</groupId>
-    <artifactId>kafka-clients</artifactId>
-    <version>0.11.0.0</version>
-</dependency>
-```
-
-* `KafkaConsumer`：需要创建一个消费者对象，用来消费数据
-* `ConsumerConfig`：获取所需的一系列配置参数
-* `ConsuemrRecord`：每条数据都要封装成一个 ConsumerRecord 对象
-
-为了使我们能够专注于自己的业务逻辑，Kafka 提供了自动提交 offset 的功能。
-自动提交 offset 的相关参数：
-* `enable.auto.commit`：是否开启自动提交 offset 功能\
-* `auto.commit.interval.ms`：自动提交 offset 的时间间隔
-
-```
-props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,"earliest");
-props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,true); // 自动提交
-KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
-consumer.subscribe(Arrays.asList("first"));
-```
-
-### 2.手动提交 offset
-手动提交 offset 的方法有两种
-* 分别是 commitSync（同步提交）和 commitAsync（异步提交）
-* 两者的相同点是，都会将本次 poll 的一批数据最高的偏移量提交; 不同点是，commitSync 阻塞当前线程，一直到提交成功，并且会自动失败充实（由不可控因素导致，也会出现提交失败）; 
-* 而 commitAsync 则没有失败重试机制，故有可能提交失败。
-
-#### 同步提交 commitSync offset
-```
-props.put("enable.auto.commit", "false");// 关闭自动提交 offset
-KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
-consumer.subscribe(Arrays.asList("first"));// 消费者订阅主题
-while (true) {
-    ConsumerRecords<String, String> records = consumer.poll(100);// 消费者拉取数据
-    for (ConsumerRecord<String, String> record : records) {
-        System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
-    }
-    consumer.commitSync();// 同步提交，当前线程会阻塞直到 offset 提交成功
-}
-```
-
-#### 异步提交 commitAsync offset
-```
-while (true) {
-      ConsumerRecords<String, String> records = consumer.poll(100);
-      for (ConsumerRecord<String, String> record : records) {
-          System.out.println("offset:" + record.offset() +
-                  "key:" + record.key() + "value" + record.value());
-      }
-      consumer.commitAsync(new OffsetCommitCallback() {
-          public void onComplete(Map<TopicPartition, OffsetAndMetadata> map, Exception e) {
-              if (e != null)
-                  System.out.println("commit failed for" + map);
-          }
-      });// 异步提交
-  }
-    }
-```
-
-#### 数据漏消费和重复消费分析
-* 先提交 offset 后消费，有可能造成数据的漏消费；
-* 先消费后提交 offset，有可能会造成数据的重复消费
-
-Rebalance: 当有新的消费者加入消费者组、已有的消费者推出消费者组或者所订阅的主题的分区发生变化，就会触发到分区的重新分配，重新分配的过程
-* 消费者发生 Rebalance 之后，每个消费者消费的分区就会发生变化。
-* 消费者要首先获取到自己被重新分配到的分区，并且定位到每个分区最近提交的 offset 位置继续消费
-* 要实现自定义存储 offset，需要借助 `ConsumerRebalanceListener`
-
-
-## 自定义 Interceptor
-
-### 拦截器
-* 主要用于实现 clients 端的定制化控制逻辑
-*  对于 producer 而言，interceptor 使得用户在消息发送前以及 producer 回调逻辑前有机会对消息做一些定制化需求，比如修改消息等。
-*  同时，producer 允许用户指定多个 interceptor 按序作用于同一条消息从而形成一个拦截链(interceptor chain)
-
-
-Intercetpor 的实现接口`org.apache.kafka.clients.producer.ProducerInterceptor`
-* `configure (configs)` 获取配置信息和初始化数据时调用。
-* `onSend (ProducerRecord)`: 封装进 KafkaProducer.send 方法中,它运行在用户主线程中。Producer 确保在消息被序列化以及计算分区前调用该方法。用户可以在该方法中对消息做任何操作，但最好保证不要修改消息所属的 topic 和分区，否则会影响目标分区的计算
-* `onAcknowledgement (RecordMetadata, Exception)` : 该方法会在消息从 RecordAccumulator 成功发送到 Kafka Broker 之后，或者在发送过程中失败时调用
-* `close`： 关闭 interceptor
----
-# Kafka 单节点部署
-
-启动 Zookeeper 服务（可选择，自带或是独立的 zk 服务）
-```
-bin/zookeeper-server-start.sh -daemon config/zookeeper.properties
-```
-
-启动 Kafka 服务
-```
-bin/kafka-server-start.sh config/server.properties
-```
-
-创建 Topic
-```
-bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic test
-```
-查看 Topic
-```
-bin/kafka-topics.sh --list --zookeeper localhost:2181
-```
-
-产生消息
-```
-bin/kafka-console-producer.sh --broker-list localhost:9092 --topic test
-
-```
-
-消费消息
-```
-bin/kafka-topics.sh --delete --zookeeper localhost:2181 --topic test
-```
-
-查看描述 Topic 信息
-```
-[root@localhost kafka_2.11-1.0.0]# bin/kafka-topics.sh --describe --zookeeper 
-Topic:test      PartitionCount:1        ReplicationFactor:1     Configs: // 第一行给出了所有分区的摘要，每个附加行给出了关于一个分区的信息。 由于我们只有一个分区，所以只有一行。
-
-Topic: test     Partition: 0    Leader: 1       Replicas: 1     Isr: 1
-```
-* Leader: 是负责给定分区的所有读取和写入的节点。 每个节点将成为分区随机选择部分的领导者。
-* Replicas: 是复制此分区日志的节点列表，无论它们是否是领导者，或者即使他们当前处于活动状态。
-* Isr : 是一组 “同步” 副本。这是复制品列表的子集，当前活着并被引导到领导者。
-
-----
 
