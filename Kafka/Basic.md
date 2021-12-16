@@ -11,8 +11,11 @@ Kafka
       - 分区策略
       - 数据可靠性保证 - Exactly Once
     - 消费者
-      - 
- - Kafka 单点配置 
+      - 消费方式
+      - 分区分配策略
+      - offset 的维护
+      - Zookeeper 在 Kafka 中的作用
+ -  Kafka 事务
 
 -----
 # Message Queue
@@ -35,10 +38,18 @@ Kafka
   * topic实现了发布和订阅，当你发布一个消息，所有订阅这个topic的服务都能得到这个消息，所以从1到N个订阅者都能得到一个消息的拷贝
  
  
-**Kafka的优势**
-* 极致的性能 ：基于 Scala 和 Java 语言开发，设计中大量使用了批量处理和异步的思想，最高可以每秒处理千万级别的消息。
-* 生态系统兼容性无可匹敌 ：Kafka 与周边生态系统的兼容性是最好的没有之一，尤其在大数据和流计算领域。
+ 
+## kafka、activemq、rabbitmq、rocketmq都有什么优点和缺点啊？
+持久化日志
+ * 持久性 ：消息被持久化到本地磁盘，并且支持数据备份防止数据丢失；Kafka 持久化日志，这些日志可以被重复读取和无限期保留
+ * 日志收集：一个公司可以用Kafka可以收集各种服务的log，通过kafka以统一接口服务的方式开放给各种consumer
+多副本存储机制
+ * 副本间消息同步、异步复制，数据同步或异步落盘多种方式供您自由选择
+ * 可靠性: 为保证集群中的某个节点发生故障时，该节点上的partition数据不丢失，且kafka仍然能够继续工作，kafka提供了副本机制，
+高并发
+ *  同一个topic分成不同的partition放在不同的broker上
 
+ 
 
 
 ----
@@ -128,6 +139,7 @@ Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系�
 >  * MessageSize：表示 message 内容 data 的大小；
 >  * data：message 的具体内容
 
+----
 
 ## Kafka 生产者
 
@@ -143,6 +155,17 @@ Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系�
 
 <img width="583" alt="Screen Shot 2021-12-16 at 10 59 46 AM" src="https://user-images.githubusercontent.com/27160394/146300209-2804c334-a0a2-4e1c-beae-0aa9ba6c3c29.png">
 
+**Spark**
+* 消息缓冲区
+* `Sender`线程把一个一个批次发送到broker
+* 回执确认：acks，如对效率要求较高的情况下建议使用0
+
+
+
+----
+## Broker
+
+broker 是消息的代理，Producers往Brokers里面的指定Topic中写消息，Consumers从Brokers里面拉取指定Topic的消息，然后进行业务处理，broker在中间起到一个代理保存消息的中转站
 
 ### 分区策略
 
@@ -159,14 +182,7 @@ Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系�
   * 既没有partition值有没有key值的情况下，第一次调用时随机生成一个整数(后面调用在这个整数上自增)，将这个值的 topic 可用的 partition 总数取余得到 partition 值，也就是常说的 Round Robin（轮询调度）算法。
   
  
- 
-### 数据可靠性保证
-
-* ISR：in-sync replics，每个分区(Partition)中同步的副本列表。
-* Hight Watermark：副本水位值，表示分区中最新一条已提交(Committed)的消息的Offset。
-* LEO：Log End Offset，Leader中最新消息的Offset。
-* Committed Message：已提交消息，已经被所有ISR同步的消息。
-* Lagging Message：没有达到所有ISR同步的消息。
+### 数据可靠性保证(主从复制)
 
 
 1. 为保证 producer 发送的数据，能可靠的发送到指定的 topic
@@ -175,14 +191,23 @@ Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系�
 
 <img width="646" alt="Screen Shot 2021-12-15 at 11 38 28 AM" src="https://user-images.githubusercontent.com/27160394/146118778-3012e9c3-a4da-4c10-a673-bb661e0f3b2e.png">
 
+
 ```
 副本数据同步策略
 1. 半数以上完成同步，就发送 ack	延迟低	选举新的 leader 时，容忍 n 台节点的故障，需要 2n+1 个副本
 2. 全部完成同步，才发送 ack	选举新的 leader 时，容忍 n 台节点的故障，需要 n+1 个副本	
 ```
+
 Kafka 选择了第二种方案，
 * 同样为了容忍 n 台节点的故障，第一种方案需要 2n+1 个副本，而第二种方案只需要 n+1 个副本，而 Kafka 的每个分区都有大量的数据，第一种方案会造成大量数据的冗余
 * 虽然第二种方案的网络延迟会比较高，但网络延迟对 Kafka 的影响较小（同一网络环境下的传输）
+
+
+* ISR：in-sync replics，每个分区(Partition)中同步的副本列表。
+* Hight Watermark：副本水位值，表示分区中最新一条已提交(Committed)的消息的Offset。
+* LEO：Log End Offset，Leader中最新消息的Offset。
+* Committed Message：已提交消息，已经被所有ISR同步的消息。
+* Lagging Message：没有达到所有ISR同步的消息。
 
 
 ISR
@@ -194,11 +219,14 @@ ISR
 
 ack 应答机制
 > 对于某些不太重要的数据，对数据的可靠性要求不是很高，能够容忍数据的少量丢失，所以没必要等 ISR 中的 follower 全部接收成功。
+
 * ack = 0 : producer 不等待 broker 的 ack，这一操作提供了一个最低的延迟，broker 一接收到还没有写入磁盘就已经返回，当 broker 故障时有可能丢失数据
 * ack = 1 : producer 等待 broker 的 ack，partition 的 leader 落盘成功后返回 ack，如果在 follower 同步成功之前 leader 故障，那么就会丢失数据
 * ack = -1(all)：producer 等待 broker 的 ack，partition 的 leader 和 follower（是 ISR 中的） 全部落盘成功后才返回 ack，但是如果 follower 同步完成后，broker 发送 ack 之前，leader 发生故障，producer 重新发送消息给新 leader 那么会造成数据重复。
 
 ```
+数据只要被Leader写入log就被认为已经commit
+
 follower 故障 follower 发生故障后会被临时踢出 ISR
 待该 follower 恢复后，follower 会读取本地磁盘记录的上次的 HW，并将 log 文件高于 HW 的部分截取掉，从 HW 开始向 leader 进行同步。
 等该 follower 的 LEO 大于等于该 Partition 的 HW，即 follower 追上 leader 之后，就可以重新加入 ISR 了。
@@ -209,10 +237,13 @@ leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leade
 
 ####  Exactly Once
 
+
+
 |寓意|级别|优劣势|
 |---|----|-----|
 |At Least Once| 将服务器的 ACK 级别设置为 -1，可以保证 Producer 到 Server 之间不会丢失数据| 可以保证数据不丢失，但是不能保证数据不重复；|
 |At Most Once|将服务器 ACK 级别设置为 0，可以保证生产者每条消息只会被 发送一次|可以保证数据不重复，但是不能保证数据不丢失|
+
 
 **幂等性**
 > 对于一些非常重要的信息，比如说交易数据，下游数据消费者要求数据既不重复也不丢失，即 Exactly Once 语义。
@@ -294,6 +325,7 @@ Partition 会为每个 Consumer Group 保存一个偏移量，记录 Group 消�
 同一个消费者组中的消费者， 同一时刻只能有一个消费者消费。
 
 group + topic + partition（GTP） 才能确定一个 offset
+
 1. 修改配置文件`consumer.properties`
 ```
 exclude.internal.topics=false
@@ -304,26 +336,117 @@ bin/kafkabin/kafka--consoleconsole--consumer.sh consumer.sh ----topic __consumer
 ```
 
 
+-----
+# Kafka 性能
 
-## Kafka 高效读写数据
-### 1. 顺序写磁盘
+## 消息高可靠性(处理消息丢失的问题)
+
+1. Producer在发布消息到某个Partition时，先通过ZooKeeper找到该Partition的Leader，然后无论该Topic的Replication Factor为多少（也即该Partition有多少个Replica），
+2. Producer只将该消息发送到该Partition的Leader。
+3. Leader会将该消息写入其本地Log。每个Follower都从Leader中pull数据
+
+### 生产者丢数据
+
+不使用`producer.send(msg)`，而使用带回调的`producer.send(msg, callback)`方法；
+
+1. 配置要在producer端设置acks=all。这个配置保证了，follwer同步完成后，才认为消息发送成功。
+2. producer端设置retries=MAX，一旦写入失败，这无限重试
+
+### 消息队列丢数据
+> 数据还没同步，leader就挂了，这时zookpeer会将其他的follwer切换为leader,那数据就丢失了
+
+* `replication.factor`参数，这个值必须大于1，即要求每个partition必须有至少2个副本
+* `min.insync.replicas`参数，这个值必须大于1，这个是要求一个leader至少感知到有至少一个follower还跟自己保持联系
+* 确保`replication.factor` > `min.insync.replicas`。若两者相等，则如果有一个副本挂了，整个分区就无法正常工作了。推荐设置为：replication.factor = min.insync.replicas + 1；
+
+
+### 消费者丢数据
+
+消费端数据丢失的原因是 offset 的自动提交。
+* 消费者会自动每隔一段时间将offset保存到zookeeper上，此时如果刚好将偏移量提交到zookeeper上后，但这条数据还没消费完，机器发生宕机，此时数据就丢失了
+
+改成手动提交即可: 关闭自动提交，改成手动提交，每次数据处理完后，再提交。
+
+
+Kafka消息消费有两个consumer接口，Low-level API和High-level API：
+
+* Low-level API：消费者自己维护offset等值，可以实现对Kafka的完全控制；
+* High-level API：封装了对parition和offset的管理，使用简单
+
+
+### 如何保证消息不被重复消费？
+
+
+Kafka所提供的消息精确一次消费的手段有两个：幂等性Producer和事务型Producer。
+* 幂等性Producer只能保证单会话、单分区上的消息幂等性；
+* 事务型Producer可以保证跨分区、跨会话间的幂等性；
+* 事务型Producer功能更为强大，但是同时，其效率也会比较低下。
+
+
+
+目前Kafka默认提供的消息可靠机制是“至少一次” :
+
+Exactly once: At Least Once + 幂等性 
+* 幂等性就是指 Producer 不论向 Server 发送多少次重复数据，Server 端都只会持久化一条。幂等性结合 At Least Once 语义，就构成了 Kafka 的 Exactly Once 
+* Kafka 的幂等性实现其实就是将原来下游需要做的去重放在了数据上游
+  * 要启用幂等性，只需要将 Producer 的参数中`enable.idompotence`设置为 true
+  * 开启幂等性的Producer在初始化的时候会被分配一个`PID`，发往同一`Partition`的消息会附带 Sequence Number。而 Broker端会对做缓存，当具有相同主键的消息提交时，Broker 只会持久化一条
+  * PID重启就会变化，同时不同的 Partition 也具有不同主键，所以幂等性无法保证跨分区跨会话的 Exactly Once
+
+
+幂等性并不能跨多个分区运作，而Kafka事务则可以弥补这个缺陷,主要在read committed隔离级别
+* 设置Producer端参数transcational.id。最好为其设置一个有意义的名字。
+* 事务型Producer可以保证record1和record2要么全部提交成功，要么全部写入失败
+* 读取事务型Producer发送的消息时，Consumer端的isolation.level参数表征着事务的隔离级别，即决定了Consumer以怎样的级别去读取消息
+  * read_uncommitted：默认值，表面Consumer能够读到Kafka写入的任何消息，不论事务型Producer是否正常提交了事务。显然，如果启用了事务型的Producer，则Consumer端参数就不要使用该值，否则事务是无效的。
+  * read_committed：表面Consumer只会读取事务型Producer成功提交的事务中写入的消息，同时，非事务型Producer写入的所有消息对Consumer也是可见的。
+
+
+
+### 如何保证消息的顺序性？
+
+* kafka每个partition中的消息在写入时都是有序的，消费时，每个partition只能被每一个group中的一个消费者消费，保证了消费时也是有序的。
+* 整个topic不保证有序。如果为了保证topic整个有序，那么将partition调整为1.
+
+
+## kafka 的高可用机制
+
+
+## Kafka 高效读写数据（谈谈 Kafka 吞吐量为何如此高）
+
+### 1.顺序写磁盘
 Kafka 的 producer 生产数据，要写入到 log 文件中，写的过程是一直追加到文件末端，为顺序写。官网有数据表明，同样的磁盘，顺序写能到到 600M/s，而随机写只有 100k/s。这与磁盘的机械机构有关，顺序写之所以快，是因为其省去了大量磁头寻址的时间。
-
 
 ### 2. 零拷贝技术
 
 零拷贝主要的任务就是避免 CPU 将数据从一块存储拷贝到另外一块存储，主要就是利用各种零拷贝技术，避免让 CPU 做大量的数据拷贝任务，减少不必要的拷贝，或者让别的组件来做这一类简单的数据传输任务，让 CPU 解脱出来专注于别的任务。这样就可以让系统资源的利用更加有效。
 
+### 3.分区分段+索引
+
+* Kafka的message是按topic分类存储的，topic中的数据又是按照一个一个的partition即分区存储到不同broker节点。
+* 每个partition对应了操作系统上的一个文件夹，partition实际上又是按照segment分段存储的。这也非常符合分布式系统分区分桶的设计思想
+
+
+#### 4.批量读写
+Kafka数据读写也是批量的而不是单条的
+
 
 ## Zookeeper 在 Kafka 中的作用
 
+kafka在所有broker中选出一个controller，所有Partition的Leader选举都由controller决定。
+* controller会将Leader的改变直接通过RPC的方式（比Zookeeper Queue的方式更高效）通知需为此作出响应的Broker。
+* 同时controller也负责增删Topic以及Replica的重新分配。
+
+Zookeeper
 * Kafka 集群中有一个 broker 会被选举为 Controller，负责管理集群 broker 的上下线，所有 topic 的分区副本分配和 leader 选举等工作。
 * Controller 的管理工作都是依赖于 Zookeeper 的。
 
 <img width="550" alt="Screen Shot 2021-12-15 at 12 49 47 PM" src="https://user-images.githubusercontent.com/27160394/146125167-419fa276-b675-4263-85eb-46e6886364ad.png">
 
 
-## Kafka 事务
+---
+
+# Kafka 事务
 > 事务可以保证 Kafka 在 Exactly Once 语义的基础上，生产和消费可以跨分区和会话，要么全部成功，要么全部失败。
 
 * Producer事务事务
@@ -335,6 +458,6 @@ Kafka 的 producer 生产数据，要写入到 log 文件中，写的过程是�
 ```
 对于 Consumer 而言，事务的保证就会相对较弱，尤其时无法保证 Commit 的信息被精确消费。这是由于 Consumer 可以通过 offset 访问任意信息，而且不同的 Segment File 生命周期不同，同一事务的消息可能会出现重启后被删除的情况。
 ```
----
+
 
 
