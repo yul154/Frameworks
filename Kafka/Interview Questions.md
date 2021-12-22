@@ -57,3 +57,21 @@ static membership
 
 而Kafka 事务消息则是用在一次事务中需要发送多个消息的情况，保证多个消息之间的事务约束，即多条消息要么都发送成功，要么都发送失败
 Kafka 的事务基本上是配合其幂等机制来实现Exactly Once 语义的
+
+> 消息可靠性，消息重复消费。如果消息丢失，你应该怎么尽量地让用户觉得此次下单的
+
+消息丢失
+* 消费端弄丢了数据: 改成手动
+* Kafka 弄丢了数据 
+    * 给 topic 设置 replication.factor 参数
+    * 在 Kafka 服务端设置 min.insync.replicas 参数
+    * 在 producer 端设置 acks=all
+    * 在 producer 端设置 retries=MAX
+
+* 生产者会不会弄丢数据？: 按照上述的思路设置了 acks=all，一定不会丢
+
+消息重复
+* 消费端处理消息的业务逻辑保持幂等性
+* 保证每条消息都有唯一编号且保证消息处理成功与去重表的日志同时出现
+
+
