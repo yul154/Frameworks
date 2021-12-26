@@ -1,4 +1,11 @@
 # Spring IOC
+- IOC 原理
+- DI
+  - 自动装配
+- IOC 实现原理
+ - 容器框架
+ - 容器初始化
+ - bean初始化
 
 ## Spring IOC的原理
 
@@ -256,5 +263,11 @@ Spring IoC容器对Bean定义资源的载入是从refresh()函数开始efresh()�
    * 如果bean的scope是singleton的，并且lazy-init为false（默认是false，所以可以不用设置），则ApplicationContext启动的时候就实例化该Bean，并且将实例化的Bean放在一个map结构的缓存中，下次再使用该Bean的时候，直接从这个缓存中取 
    * 如果bean的scope是singleton的，并且lazy-init为true，则该Bean的实例化是在第一次使用该Bean的时候进行实例化 
    * 如果bean的scope是prototype的，则该Bean的实例化是在第一次使用该Bean的时候进行
-```       
+``` 
+        
+### `getBean`
+        
+
+        
+        
         
