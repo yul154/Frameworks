@@ -15,7 +15,6 @@
 * 但在spring里创建被调用者的工作不再由调用者来完成，因此控制反转（IoC）；创建被调用者实例的工作通常由spring容器来完成，然后注入调用者，因此也被称为依赖注入（DI），
 ````
 
-
 IoC 全称为 InversionofControl，翻译为 “控制反转”.
 * 面向对象编程中的一种设计原则，一种设计思想 可以用来减低计算机代码之间的耦合度
 * Ioc意味着将你设计好的对象交给容器控制，而不是传统的在你的对象内部直接控制
@@ -30,7 +29,6 @@ IoC 全称为 InversionofControl，翻译为 “控制反转”.
 * 依赖对象的获取方面反转了
 
 
-
 ## IoC能做什么
 > IoC 不是一种技术，只是一种思想
 
@@ -39,7 +37,7 @@ IoC 全称为 InversionofControl，翻译为 “控制反转”.
 IoC很好的体现了面向对象设计法则之一—— 好莱坞法则：“别找我们，我们找你”
 
 
-### Ioc 配置的三种方式
+## Ioc 配置的三种方式
 
 
 **1.xml 配置**
@@ -58,8 +56,8 @@ IoC很好的体现了面向对象设计法则之一—— 好莱坞法则：“�
 1. 对类添加@Component相关的注解，比如@Controller，@Service，@Repository 
 2. 设置ComponentScan的basePackage,`@ComponentScan("tech.pdai.springframework")`注解，或者 `new AnnotationConfigApplicationContext("tech.pdai.springframework"`)指定扫描的basePackage.
 
-
-## DI
+-----
+# DI
 > 控制反转是通过依赖注入实现的，其实它们是同一个概念的不同角度描述。通俗来说就是IoC是设计思想，DI是实现方式
 
 
@@ -70,7 +68,7 @@ DI的关键是：“谁依赖谁，为什么需要依赖，谁注入谁，注入
 * 就是注入某个对象所需要的外部资源（包括对象、资源、常量数据）
 
 
-###   依赖注入方式
+##   依赖注入方式
 对于spring配置一个bean时，如果需要给该bean提供一些初始化参数，则需要通过依赖注入方式
 * 依赖注入就是通过spring将bean所需要的一些参数传递到bean实例对象的过程
 
@@ -125,7 +123,7 @@ public UserServiceImpl(final UserDaoImpl userDaoImpl) {
 
 
 
-#### 常用的自动装配注解有以下几种
+### 常用的自动装配注解有以下几种
 
 @Autowired
 * @Autowired是Spring自带的注解，通过`AutowiredAnnotationBeanPostProcessor`类实现的依赖注入
@@ -154,9 +152,11 @@ public UserServiceImpl(final UserDaoImpl userDaoImpl) {
 
 
 -----
+
+
 # IOC的底层实现
 
-<img width="832" alt="Screen Shot 2021-12-26 at 7 27 20 PM" src="https://user-images.githubusercontent.com/27160394/147406550-436e7e0d-b72a-417e-9569-b4df109f6515.png">
+<img width="532" alt="Screen Shot 2021-12-26 at 7 27 20 PM" src="https://user-images.githubusercontent.com/27160394/147406550-436e7e0d-b72a-417e-9569-b4df109f6515.png">
 
 
 Spring IoC 的底层实现是基于反射技术
@@ -253,7 +253,8 @@ Spring IoC容器对Bean定义资源的载入是从refresh()函数开始efresh()�
    1. 通过 ResourceLoader 来完成资源文件位置的定位，DefaultResourceLoader 是默认的实现，同时上下文本身就给出了 ResourceLoader 的实现，可以从类路径，文件系统, URL 等方式来定为资源位置    2. 通过 BeanDefinitionReader来完成定义信息的解析和 Bean 信息的注册, 往往使用的是XmlBeanDefinitionReader 来解析 bean 的 xml 定义文件
    3. 容器解析得到 BeanDefinition 以后，需要把它在 IOC 容器中注册，这由 IOC 实现 BeanDefinitionRegistry 接口来实现
 
-### Bean实例化 
+  
+## Bean实例化 
 > 如何从BeanDefinition中实例化Bean对象 
        
 **Spring什么时候实例化bean**
@@ -266,8 +267,113 @@ Spring IoC容器对Bean定义资源的载入是从refresh()函数开始efresh()�
 ``` 
         
 ### `getBean`
-        
+1. 从beanDefinitionMap通过beanName获得BeanDefinition 
+2. 从BeanDefinition中获得beanClassName 
+3. 通过反射初始化beanClassName的实例instance
+    * 构造函数从BeanDefinition的getConstructorArgumentValues()方法获取 
+    * 属性值从BeanDefinition的getPropertyValues()方法获取 
+4. 返回beanName的实例instance
 
+### Spring如何解决循环依赖问题
+> Spring只是解决了单例模式下属性依赖的循环问题；Spring为了解决单例的循环依赖问题，使用了三级缓存
+  
+* 第一层缓存（singletonObjects）：单例对象缓存池，已经实例化并且属性赋值，这里的对象是成熟对象； 
+* 第二层缓存（earlySingletonObjects）：单例对象缓存池，已经实例化并且属性赋值，这里的对象是半成品对象； 
+* 第三层缓存（singletonFactories）: 单例工厂的缓存
+```
+  /** Cache of singleton objects: bean name --> bean instance */
+private final Map<String, Object> singletonObjects = new ConcurrentHashMap<String, Object>(256);
+ 
+/** Cache of early singleton objects: bean name --> bean instance */
+private final Map<String, Object> earlySingletonObjects = new HashMap<String, Object>(16);
+
+/** Cache of singleton factories: bean name --> ObjectFactory */
+private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<String, ObjectFactory<?>>(16);
+
+```
+#### `getSingleton()`
+  1. Spring首先从一级缓存singletonObjects中获取。
+  2. 若是获取不到，而且对象正在建立中，就再从二级缓存earlySingletonObjects中获取。
+  3. 若是仍是获取不到且容许singletonFactories经过getObject()获取，就从三级缓存singletonFactory.getObject()(三级缓存)获取，若是获取到了则从三级缓存移动到了二级缓存。
+  
+
+A对象setter依赖B对象，B对象setter依赖A对象
+1. A首先完成了初始化的第一步，而且将本身提早曝光到singletonFactories中
+2. 发现本身依赖对象B，此时就尝试去get(B)，发现B尚未被create，因此走create流程
+3. B在初始化第一步的时候发现本身依赖了对象A，因而尝试get(A)
+   * 尝试一级缓存singletonObjects(确定没有，由于A还没初始化彻底)
+   * 尝试二级缓存earlySingletonObjects（也没有）
+   * 尝试三级缓存singletonFactories，因为A经过ObjectFactory将本身提早曝光了，因此B可以经过ObjectFactory.getObject拿到A对象(虽然A尚未初始化彻底，可是总比没有好呀)，
+  
+
+#### Spring为何不能解决非单例属性之外的循环依赖？
+  
+**Spring为什么不能解决构造器的循环依赖？**
+* Spring解决循环依赖主要是依赖三级缓存，但是的在调用构造方法之前还未将其放入三级缓存之中
+* 这类循环依赖问题可以通过使用@Lazy注解解决。
+  
+**Spring为什么不能解决prototype作用域循环依赖？**
+* 因为spring不会缓存‘prototype’作用域的bean，而spring中循环依赖的解决正是通过缓存来实现的
+  
+**Spring为什么不能解决多例的循环依赖？**
+* 多实例Bean是每次调用一次getBean都会执行一次构造方法并且未属性赋值，根本没有三级缓存，因此解决循环依赖。
+* 这类循环依赖问题可以通过把bean改成单例的解决。
+  
+ 
+* 生成代理对象产生的循环依赖
+  * 使用@Lazy注解，延迟加载
+  * 使用@DependsOn注解，指定加载先后关系
+  * 修改文件名称，改变循环依赖类的加载顺序
+  
+    
+### Spring中Bean的生命周期
+> Spring 只帮我们管理单例模式 Bean 的完整生命周期，对于 prototype 的 bean ，Spring 在创建好交给使用者之后则不会再管理后续的生命周期
+  
+<img width="644" alt="Screen Shot 2021-12-26 at 8 00 06 PM" src="https://user-images.githubusercontent.com/27160394/147407340-8b493638-02f6-4514-993d-c386e8c1b3a0.png">
+
+1. Bean 容器找到配置文件中 Spring Bean 的定义 解析类得到BeanDefinition
+
+2. Bean 容器利用 Java Reflection API 创建一个Bean的实例
+
+3、如果涉及到一些属性值 利用 set()方法设置一些属性值
+
+4、如果 Bean 实现了 BeanNameAware 接口，调用 setBeanName()方法，传入Bean的名字
+
+5、如果 Bean 实现了 BeanClassLoaderAware 接口，调用 setBeanClassLoader()方法，传入 ClassLoader对象的实例。 与上面的类似，如果实现了其他 *.Aware接口，就调用相应的方法。
+
+6、如果有和加载这个 Bean 的 Spring 容器相关的 BeanPostProcessor 对象，执行postProcessBeforeInitialization() 方法
+
+7. 如果 Bean 在配置文件中的定义包含 init-method 属性，执行指定的方法
+
+8、如果有和加载这个 Bean的 Spring 容器相关的 BeanPostProcessor 对象，执行postProcessAfterInitialization() 方法
+
+9、如果当前创建的bean是单例的则会把bean放入单例池
+
+10、使用bean
+
+11、当要销毁 Bean 的时候，如果 Bean 实现了 DisposableBean 接口，执行 destroy() 方法。
+12. 当要销毁 Bean 的时候，如果 Bean 在配置文件中的定义包含 destroy-method 属性，执行指定的方法。
+  
         
-        
-        
+ 
+### Spring 中的 bean 的作用域有哪些?
+  
+* singleton : 唯一 bean 实例，Spring 中的 bean 默认都是单例的。
+* prototype : 每次请求都会创建一个新的 bean 实例。
+* request : 每一次HTTP请求都会产生一个新的bean，该bean仅在当前HTTP request内有效。
+* session : 每一次HTTP请求都会产生一个新的 bean，该bean仅在当前 HTTP session 内有效。
+* global-session： 全局session作用域，仅仅在基于portlet的web应用中才有意义，Spring5已经没有了。Portlet是能够生成语义代码(例如：HTML)片段的小型Java Web插件。它们基于portlet容器，可以像servlet一样处理HTTP请求。但是，与 servlet 不同，每个 portlet 都有不同的会话
+
+> @Component 和 @Bean 的区别是什么？
+
+* 作用对象不同: @Component 注解作用于类，而@Bean注解作用于方法。
+* @Component通常是通过类路径扫描(`@ComponentScan`)来自动侦测以及自动装配到Spring容器中。@Bean注解通常是我们在标有该注解的方法中定义产生这个 bean,@Bean告诉了Spring这是某个类的示例，当我需要用它的时候还给我。
+* @Bean注解比Component 注解的自定义性更强，而且很多地方我们只能通过 @Bean 注解来注册bean。比如当我们引用第三方库中的类需要装配到 Spring容器时，则只能通过 @Bean来实现
+  
+> 将一个类声明为Spring的 bean 的注解有哪些?
+  
+我们一般使用 @Autowired 注解自动装配 bean，要想把类标识成可用于 @Autowired 注解自动装配的 bean 的类,采用以下注解可实现：
+* @Component ：通用的注解，可标注任意类为 Spring 组件。如果一个Bean不知道属于哪个层，可以使用@Component 注解标注。
+* @Repository : 对应持久层即 Dao 层，主要用于数据库相关操作。
+* @Service : 对应服务层，主要涉及一些复杂的逻辑，需要用到 Dao层。
+* @Controller : 对应 Spring MVC 控制层，主要用户接受用户请求并调用 Service 层返回数据给前端页面
