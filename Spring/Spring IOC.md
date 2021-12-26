@@ -32,24 +32,6 @@ IoC 全称为 InversionofControl，翻译为 “控制反转”.
 IoC很好的体现了面向对象设计法则之一—— 好莱坞法则：“别找我们，我们找你”
 
 
-## IOC的底层实现
-Spring IoC 的底层实现是基于反射技术
-* 工厂+反射+配置文件(bean)
-* 使用反射技术获取对象的信息包括：类信息、成员、方法等等
-* 再通过 xml 配置 或者 注解 的方式，说明依赖关系
-* 在调用类需要使用其他类的时候，不再通过调用类自己实现，而是通过 IoC 容器进行注入。
-
-### Spring IOC容器是怎么实现对象的创建和依赖的
-1. 根据Bean配置信息在容器内部创建Bean定义注册表
-2. 根据注册表加载、实例化bean、建立Bean与Bean之间的依赖关系
-3. 将这些准备就绪的Bean放到Map缓存池中，等待应用程序调用
-
-Spring容器(Bean工厂)可简单分成两种：
-* BeanFactory :这是最基础、面向Spring的
-* ApplicationContext : ApplicationContext是BeanFactory的子类
-
-
-
 ### Ioc 配置的三种方式
 
 
@@ -164,12 +146,115 @@ public UserServiceImpl(final UserDaoImpl userDaoImpl) {
 5. 单例Bean缓存池：Spring 在DefaultSingletonBeanRegistry类中提供了一个用于缓存单实例 Bean 的缓存器，它是一个用HashMap实现的缓存器，单实例的 Bean 以beanName为键保存在这个HashMap中。
 
 
+-----
+# IOC的底层实现
+
+<img width="832" alt="Screen Shot 2021-12-26 at 7 27 20 PM" src="https://user-images.githubusercontent.com/27160394/147406550-436e7e0d-b72a-417e-9569-b4df109f6515.png">
 
 
-> Spring什么时候实例化bean
+Spring IoC 的底层实现是基于反射技术
+* 工厂+反射+配置文件(bean)
+* 使用反射技术获取对象的信息包括：类信息、成员、方法等等
+* 再通过 xml 配置 或者 注解 的方式，说明依赖关系
+* 在调用类需要使用其他类的时候，不再通过调用类自己实现，而是通过 IoC 容器进行注入。
 
+
+## BeanFactory和BeanRegistry：IOC容器功能规范和Bean的注册
+
+Spring IOC容器是怎么实现对象的创建和依赖的
+1. 根据Bean配置信息在容器内部创建Bean定义注册表
+2. 根据注册表加载、实例化bean、建立Bean与Bean之间的依赖关系
+3. 将这些准备就绪的Bean放到Map缓存池中，等待应用程序调用
+
+
+
+* BeanFactory : 工厂模式定义了IOC容器的基本功能规范
+* BeanRegistry： 向IOC容器手工注册 BeanDefinition 对象的方法
+
+
+### BeanFactory
+
+BeanFactory作为最顶层的一个接口类，它定义了IOC容器的基本功能规范
+
+```
+public interface BeanFactory{
+        //根据bean的名字和Class类型等来得到bean实例    
+    Object getBean(String name) throws BeansException;  
+    //返回指定bean的Provider
+    <T> ObjectProvider<T> getBeanProvider(Class<T> requiredType);
+     //检查工厂中是否包含给定name的bean，或者外部注册的bean
+    boolean containsBean(String name);
+     //检查所给定name的bean是否为单例/原型
+    boolean isSingleton(String name) throws NoSuchBeanDefinitionException
+    
+/判断所给name的类型与type是否匹配
+    boolean isTypeMatch(String name, ResolvableType typeToMatch) throws NoSuchBeanDefinitionException;
+    
+ //获取给定name的bean的类型
+    @Nullable
+    Class<?> getType(String name) throws NoSuchBeanDefinitionException;
+    
+
+}
+
+```
+
+### BeanRegistry
+> 将Bean注册到BeanFactory中
+
+* Spring配置文件中每一个<bean>节点元素在 Spring 容器里都通过一个`BeanDefinition`对象表示，它描述了 Bean 的配置信息。
+* `BeanDefinitionRegistry`接口提供了向容器手工注册 BeanDefinition 对象的方法
+
+#### BeanDefinition
+> 各种Bean对象及其相互的关系
+
+* BeanDefinition 定义了各种Bean对象及其相互的关系 
+* BeanDefinitionReader 这是BeanDefinition的解析器 
+* BeanDefinitionHolder 这是BeanDefination的包装类，用来存储BeanDefinition，name以及aliases等。
+
+
+### ApplicationContext：IOC接口设计和实现
+> IoC容器的接口类是ApplicationContext，很显然它必然继承BeanFactory对Bean规范（最基本的ioc容器的实现）进行定义
+        
+ApplicationContext表示的是应用的上下文，除了对Bean的管理外，还至少应该包含了
+* 访问资源： 对不同方式的Bean配置（即资源）进行加载。(实现ResourcePatternResolver接口) 
+* 国际化: 支持信息源，可以实现国际化。（实现MessageSource接口） ]
+* 应用事件: 支持应用事件。(实现ApplicationEventPublisher接口) ¶        
+           
+
+## IOC容器初始化的基本步骤
+        
+最终的将Bean的定义即BeanDefinition放到beanDefinitionMap中，本质上是一个ConcurrentHashMap<String, Object>；并且BeanDefinition接口中包含了这个类的Class信息以及是否是单例等；
+        
+### 初始化的主体流程
+        
+Spring IoC容器对Bean定义资源的载入是从refresh()函数开始efresh()是一个模板方法
+* refresh()方法的作用是：对IoC容器的重启，在新建立好的容器中对容器进行初始化，对Bean定义资源进行载入
+        
+![Screen Shot 2021-12-26 at 7 39 58 PM](https://user-images.githubusercontent.com/27160394/147406850-43846aa1-e3d8-4ae7-b300-03f0ae60a4bb.png)
+
+        
+* 模板方法中使用典型的钩子方法 将具体的初始化加载方法插入到钩子方法之间 
+* 将初始化的阶段封装，用来记录当前初始化到什么阶段；常见的设计是xxxPhase/xxxStage； 
+* 资源加载初始化有失败等处理，必然是try/catch/finally...
+        
+<img width="586" alt="Screen Shot 2021-12-26 at 7 29 49 PM" src="https://user-images.githubusercontent.com/27160394/147406606-aa42ea55-a5c1-497e-8c6a-910dc76a702e.png">
+
+               
+1. 初始化的入口在容器实现中的 refresh()调用来完成
+2. 对 bean 定义载入 IOC 容器使用的方法是 loadBeanDefinition
+   1. 通过 ResourceLoader 来完成资源文件位置的定位，DefaultResourceLoader 是默认的实现，同时上下文本身就给出了 ResourceLoader 的实现，可以从类路径，文件系统, URL 等方式来定为资源位置    2. 通过 BeanDefinitionReader来完成定义信息的解析和 Bean 信息的注册, 往往使用的是XmlBeanDefinitionReader 来解析 bean 的 xml 定义文件
+   3. 容器解析得到 BeanDefinition 以后，需要把它在 IOC 容器中注册，这由 IOC 实现 BeanDefinitionRegistry 接口来实现
+
+### Bean实例化 
+> 如何从BeanDefinition中实例化Bean对象 
+       
+**Spring什么时候实例化bean**
+```
 1. 如果你使用`BeanFactory`作为Spring Bean的工厂类，则所有的bean都是在第一次使用该Bean的时候实例化
 2.如果你使用ApplicationContext作为Spring Bean的工厂类，则又分为以下几种情况：
    * 如果bean的scope是singleton的，并且lazy-init为false（默认是false，所以可以不用设置），则ApplicationContext启动的时候就实例化该Bean，并且将实例化的Bean放在一个map结构的缓存中，下次再使用该Bean的时候，直接从这个缓存中取 
    * 如果bean的scope是singleton的，并且lazy-init为true，则该Bean的实例化是在第一次使用该Bean的时候进行实例化 
    * 如果bean的scope是prototype的，则该Bean的实例化是在第一次使用该Bean的时候进行
+```       
+        
