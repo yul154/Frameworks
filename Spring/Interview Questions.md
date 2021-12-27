@@ -262,3 +262,8 @@ Spring 创建Bean的过程，大致和对象的初始化有点类似吧。有几
 >  SpringBoot 切换成 undertow
 >  SpringBoot 的任务
 >  SpringBoot 热部署
+> @RestController vs @Controller
+* Controller 返回一个页面: 单独使用 @Controller 不加 @ResponseBody的话一般使用在要返回一个视图的情况，这种情况属于比较传统的Spring MVC 的应用，对应于前后端不分离的情况
+* @RestController 返回JSON 或 XML 形式数据: @RestController只返回对象，对象数据直接以JSON或XML形式写入 HTTP 响应(Response)中，这种情况属于 RESTful Web服务
+* @Controller +@ResponseBody= @RestController
+
