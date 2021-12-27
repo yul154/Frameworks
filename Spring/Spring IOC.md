@@ -158,12 +158,25 @@ public UserServiceImpl(final UserDaoImpl userDaoImpl) {
 
 <img width="532" alt="Screen Shot 2021-12-26 at 7 27 20 PM" src="https://user-images.githubusercontent.com/27160394/147406550-436e7e0d-b72a-417e-9569-b4df109f6515.png">
 
-
+ ```
 Spring IoC 的底层实现是基于反射技术
 * 工厂+反射+配置文件(bean)
 * 使用反射技术获取对象的信息包括：类信息、成员、方法等等
 * 再通过 xml 配置 或者 注解 的方式，说明依赖关系
 * 在调用类需要使用其他类的时候，不再通过调用类自己实现，而是通过 IoC 容器进行注入。
+```
+
+## IOC容器的主动功能
+
+* 加载Bean的配置（比如xml配置）
+  * 比如不同类型资源的加载，解析成生成统一Bean的定义 
+* 根据Bean的定义加载生成Bean的实例，并放置在Bean容器中
+  * 比如Bean的依赖注入，Bean的嵌套，Bean存放（缓存）等 
+* 除了基础Bean外，还有常规针对企业级业务的特别Bean
+  * 比如国际化Message，事件Event等生成特殊的类结构去支撑 
+* 对容器中的Bean提供统一的管理和调用
+  * 比如用工厂模式管理，提供方法根据名字/类的类型等从容器中获取Bean
+
 
 
 ## BeanFactory和BeanRegistry：IOC容器功能规范和Bean的注册
@@ -226,16 +239,17 @@ public interface BeanFactory{
 ApplicationContext表示的是应用的上下文，除了对Bean的管理外，还至少应该包含了
 * 访问资源： 对不同方式的Bean配置（即资源）进行加载。(实现ResourcePatternResolver接口) 
 * 国际化: 支持信息源，可以实现国际化。（实现MessageSource接口） ]
-* 应用事件: 支持应用事件。(实现ApplicationEventPublisher接口) ¶        
+* 应用事件: 支持应用事件。(实现ApplicationEventPublisher接口)
            
 
 ## IOC容器初始化的基本步骤
-        
-最终的将Bean的定义即BeanDefinition放到beanDefinitionMap中，本质上是一个ConcurrentHashMap<String, Object>；并且BeanDefinition接口中包含了这个类的Class信息以及是否是单例等；
-        
+> Spring如何实现将资源配置（以xml配置为例）通过加载，解析，生成BeanDefination并注册到IoC容器中的
+  
+          
 ### 初始化的主体流程
         
-Spring IoC容器对Bean定义资源的载入是从refresh()函数开始efresh()是一个模板方法
+Spring IoC容器对Bean定义资源的载入是从refresh()函数开始
+* refresh()是一个模板方法
 * refresh()方法的作用是：对IoC容器的重启，在新建立好的容器中对容器进行初始化，对Bean定义资源进行载入
         
 ![Screen Shot 2021-12-26 at 7 39 58 PM](https://user-images.githubusercontent.com/27160394/147406850-43846aa1-e3d8-4ae7-b300-03f0ae60a4bb.png)
@@ -250,12 +264,19 @@ Spring IoC容器对Bean定义资源的载入是从refresh()函数开始efresh()�
                
 1. 初始化的入口在容器实现中的 refresh()调用来完成
 2. 对 bean 定义载入 IOC 容器使用的方法是 loadBeanDefinition
-   1. 通过 ResourceLoader 来完成资源文件位置的定位，DefaultResourceLoader 是默认的实现，同时上下文本身就给出了 ResourceLoader 的实现，可以从类路径，文件系统, URL 等方式来定为资源位置    2. 通过 BeanDefinitionReader来完成定义信息的解析和 Bean 信息的注册, 往往使用的是XmlBeanDefinitionReader 来解析 bean 的 xml 定义文件
-   3. 容器解析得到 BeanDefinition 以后，需要把它在 IOC 容器中注册，这由 IOC 实现 BeanDefinitionRegistry 接口来实现
+   1. 通过 ResourceLoader来完成资源文件位置的定位,获得Resource对象。 DefaultResourceLoader 是默认的实现，同时上下文本身就给出了 ResourceLoader 的实现，可以从类路径，文件系统, URL 等方式来定为资源位置   
+   2. BeanDefinitionReader读取Resource对象, 通过 BeanDefinitionReader来完成定义信息的解析和 Bean 信息的注册(), 往往使用的是XmlBeanDefinitionReader 来解析 bean 的 xml 定义文件
+   3. 容器解析得到 BeanDefinition 以后，需要把它在 IOC 容器中注册，这由 IOC 实现 BeanDefinitionRegistry 接口来实现(BeanDefinition是容器内部Bean的基本数据结构，BeanFactory维持着一个BeanDefinition Map)
+  
+  
 
+  
   
 ## Bean实例化 
 > 如何从BeanDefinition中实例化Bean对象 
+  
+最终的将Bean的定义即BeanDefinition放到beanDefinitionMap中，本质上是一个ConcurrentHashMap<String, Object>；并且BeanDefinition接口中包含了这个类的Class信息以及是否是单例等；
+
        
 **Spring什么时候实例化bean**
 ```
@@ -331,28 +352,29 @@ A对象setter依赖B对象，B对象setter依赖A对象
   
 <img width="644" alt="Screen Shot 2021-12-26 at 8 00 06 PM" src="https://user-images.githubusercontent.com/27160394/147407340-8b493638-02f6-4514-993d-c386e8c1b3a0.png">
 
-1. Bean 容器找到配置文件中 Spring Bean 的定义 解析类得到BeanDefinition
+1. 如果 BeanFactoryPostProcessor 和 Bean 关联, 则调用postProcessBeanFactory方法.(即首先尝试从Bean工厂中获取Bean) 如果 InstantiationBeanPostProcessor 和 Bean 关联，则调用postProcessBeforeInitialzation方法
 
-2. Bean 容器利用 Java Reflection API 创建一个Bean的实例
+2. Bean 容器找到配置文件中 Spring Bean 的定义 解析类得到BeanDefinition
+3. Bean 容器利用 Java Reflection API 创建一个Bean的实例
 
-3、如果涉及到一些属性值 利用 set()方法设置一些属性值
+4. 利用依赖注入完成 Bean 中所有属性值的配置注入
 
-4、如果 Bean 实现了 BeanNameAware 接口，调用 setBeanName()方法，传入Bean的名字
+5. 调用xxxAware接口 
+  * 如果 Bean 实现了 BeanNameAware 接口，调用 setBeanName()方法，传入Bean的名字
+  * 如果 Bean 实现了 BeanClassLoaderAware 接口，调用 setBeanClassLoader()方法，传入 ClassLoader对象的实例。 与上面的类似，如果实现了其他 *.Aware接口，就调用相应的方法。
 
-5、如果 Bean 实现了 BeanClassLoaderAware 接口，调用 setBeanClassLoader()方法，传入 ClassLoader对象的实例。 与上面的类似，如果实现了其他 *.Aware接口，就调用相应的方法。
+６. 如果有和加载这个Bean的Spring容器相关的 BeanPostProcessor对象,Spring将调用该接口的预初始化方法`postProcessBeforeInitialzation()`对Bean进行加工操作，此处非常重要，Spring的AOP就是利用它实现的
 
-6、如果有和加载这个 Bean 的 Spring 容器相关的 BeanPostProcessor 对象，执行postProcessBeforeInitialization() 方法
+7. 如果在配置文件中通过 init-method 属性指定了初始化方法，则调用该初始化方法
 
-7. 如果 Bean 在配置文件中的定义包含 init-method 属性，执行指定的方法
+8、如果有和加载这个Bean的Spring容器相关的`BeanPostProcessor`对象，执行`postProcessAfterInitialization()`方法,此时，Bean已经可以被应用系统使用了
 
-8、如果有和加载这个 Bean的 Spring 容器相关的 BeanPostProcessor 对象，执行postProcessAfterInitialization() 方法
-
-9、如果当前创建的bean是单例的则会把bean放入单例池
+9、如果在 <bean> 中指定了该 Bean 的作用范围为 scope="singleton"，则将该 Bean 放入 Spring IoC 的缓存池中，将触发 Spring 对该 Bean 的生命周期管理；如果在 <bean> 中指定了该 Bean 的作用范围为 scope="prototype"，则将该 Bean 交给调用者，调用者管理该 Bean 的生命周期，Spring 不再管理该 Bean
 
 10、使用bean
 
 11、当要销毁 Bean 的时候，如果 Bean 实现了 DisposableBean 接口，执行 destroy() 方法。
-12. 当要销毁 Bean 的时候，如果 Bean 在配置文件中的定义包含 destroy-method 属性，执行指定的方法。
+12. 如果在配置文件中通过 destory-method 属性指定了 Bean 的销毁方法，则 Spring 将调用该方法对 Bean 进行销毁
   
         
  
