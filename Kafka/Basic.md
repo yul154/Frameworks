@@ -1,21 +1,22 @@
 MessageQueue
 - Why Message Queue
-- FrameWork
-
 
 Kafka 
- - 基本概念
- - 深入构架
-  - 文件存储
-    - 生产者
-      - 分区策略
-      - 数据可靠性保证 - Exactly Once
-    - 消费者
-      - 消费方式
-      - 分区分配策略
-      - offset 的维护
-      - Zookeeper 在 Kafka 中的作用
+ - Advantage
+ - Core Kafka
+ - 生产者
+   - 分区策略
+   - 数据可靠性保证 - Exactly Once
+ - Broker
+ - 消费者
+   - 消费方式
+   - 分区分配策略
+   - offset 的维护
+   - Zookeeper 在 Kafka 中的作用
  -  Kafka 事务
+ -  why kafka
+ -  顺序消费
+ -  实战问题
 
 -----
 # Message Queue
@@ -29,6 +30,7 @@ Kafka
 
 
 消息队列的两种模式
+
 1.点对点(Queue，不可重复消费):消息生产者生产消息发送到queue中，然后消息消费者从queue中取出并且消费消息。 
   * 消息被消费以后，queue中不再有存储，所以消息消费者不可能消费到已经被消费的消息。
   * Queue支持存在多个消费者，但是对一个消息而言，只会有一个消费者可以消费
@@ -37,22 +39,25 @@ Kafka
   * 消息生产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点方式不同，发布到topic的消息会被所有订阅者消费
   * topic实现了发布和订阅，当你发布一个消息，所有订阅这个topic的服务都能得到这个消息，所以从1到N个订阅者都能得到一个消息的拷贝
  
- 
- 
-## kafka、activemq、rabbitmq、rocketmq都有什么优点和缺点啊？
-持久化日志
- * 持久性 ：消息被持久化到本地磁盘，并且支持数据备份防止数据丢失；Kafka 持久化日志，这些日志可以被重复读取和无限期保留
- * 日志收集：一个公司可以用Kafka可以收集各种服务的log，通过kafka以统一接口服务的方式开放给各种consumer
-多副本存储机制
- * 副本间消息同步、异步复制，数据同步或异步落盘多种方式供您自由选择
- * 可靠性: 为保证集群中的某个节点发生故障时，该节点上的partition数据不丢失，且kafka仍然能够继续工作，kafka提供了副本机制，
-高并发
- *  同一个topic分成不同的partition放在不同的broker上
+ # 引入mq会多哪些问题
 
- 
-
+问题 | 解决方案 | 
+--- | --- | 
+重复消息问题 | 使用messageId做唯一索引
+数据一致性问题 | mq为了性能考虑使用的是最终一致性，同步重试 和 异步重试
+消息丢失问题 |消息发送表，发完消息之后，会往该表中写入一条数据，回调确认
+消息顺序问题 | kafka同一个partition中能保证顺序，但是不同的partition无法保证顺序， 同一个订单号的消息，每次到发到同一个partition
+消息堆积 | 如果不需要保证顺序，可以读取消息之后用多线程处理业务逻辑，如果需要保证顺序，可以读取消息之后，将消息按照一定的规则分发到多个队列中，然后在队列中用单线程处理
 
 ----
+
+# WHy kafka
+- 高吞吐量、低延迟：kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒，每个topic可以分多个partition, consumer group 对partition进行consume操作。
+- 可扩展性：kafka集群支持热扩展
+- 持久性、可靠性：消息被持久化到本地磁盘，多副本存储机制。
+- 容错性：允许集群中节点失败（若副本数量为n,则允许n-1个节点失败）
+- 高并发：同一个topic分成不同的partition放在不同的broker上
+
 
 # Kafka基础架构
 
@@ -94,9 +99,50 @@ Kafka
 * offset: 每条数据都有自己的 offset。消费者组中的每个消费者，都会实时记录自己消费到了哪个 offset，以便出错恢复时，从上次的位置继续消费
 
 
-## Kafka 文件存储
+----
 
-Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系统来存储和缓存消息
+# Kafka 生产者
+
+*生产者写消息的基本流程*
+
+1. 创建一个ProducerRecord : 这个对象需要包含消息的主题（topic）和值(value),可以选择性指定一个键值（key）或者分区（partition）。
+2. 对这个对象进行序列化 : 因为 Kafka 的消息需要从客户端传到服务端，涉及到网络传输，所以需要实现序列
+3. 发送到分配器(partitioner): 如果我们指定了分区，那么分配器返回该分区即可；否则，分配器将会基于键值来选择一个分区并返回。
+5. 生产者知道了消息所属的主题和分区，发送这条记录到相同主题和分区的批量消息中(不是直接被发送到服务端，而是放入了生产者的一个缓存里面),在这个缓存里面，多条消息会被封装成为一个批次（batch）
+6. `Sender`线程启动以后会从缓存里面去获取可以发送的批次,`Sender`线程把一个一个批次发送到broker
+7. 当broker接收到消息后，如果成功写入则返回一个包含消息的主题、分区及位移的RecordMetadata对象，否则返回异常。
+8. 生产者接收到结果后，对于异常可能会进行重试。
+
+<img width="583" alt="Screen Shot 2021-12-16 at 10 59 46 AM" src="https://user-images.githubusercontent.com/27160394/146300209-2804c334-a0a2-4e1c-beae-0aa9ba6c3c29.png">
+
+**Spark**
+* 消息缓冲区
+* `Sender`线程把一个一个批次发送到broker
+* 回执确认：acks，如对效率要求较高的情况下建议使用0
+
+
+
+----
+# Broker
+> broker 是消息的代理，Producers往Brokers里面的指定Topic中写消息，Consumers从Brokers里面拉取指定Topic的消息，然后进行业务处理，broker在中间起到一个代理保存消息的中转站
+
+## 分区策略
+
+数据存在不同的partition上，那kafka就把这些partition做备份。比如，现在我们有三个partition，分别存在三台broker上。每个partition都会备份，这些备份散落在不同的broker上
+
+分区的原因
+* 方便在集群中扩展，每个 Partition 可以通过调整以适应他所在的机器，而一个 topic 可以有多个 Partition 组成，因此这个集群就可以适应任意大小的数据了；
+* 可以提高并发，因为可以以 Partition 为单位读写了。
+  
+分区的原则
+* 我们将 producer 发送的数据封装成一个 ProducerRecord 对象。
+  * 指明 partition 的情况下，直接将指明的值直接作为 partition 值；
+  * 没有指明 partition 值但有 key 的情况下，将 key 的 hash 值与 topic 的 partition 数进行取余得到 partition 值；
+  * 既没有partition值有没有key值的情况下，第一次调用时随机生成一个整数(后面调用在这个整数上自增)，将这个值的 topic 可用的 partition 总数取余得到 partition 值，也就是常说的 Round Robin（轮询调度）算法。
+  
+ 
+## Kafka 文件存储
+> Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系统来存储和缓存消息
 
 <img width="651" alt="Screen Shot 2021-12-15 at 10 42 59 AM" src="https://user-images.githubusercontent.com/27160394/146113321-b20f8375-5975-4f51-a2f5-bf569038dcf4.png">
 
@@ -134,56 +180,26 @@ Kafka 的消息是存在于文件系统之上的。Kafka 高度依赖文件系�
 ```
 
 
->  Kafka 是如何准确的知道 message 的偏移的呢？这是因为在 Kafka 定义了标准的数据存储结构，在 Partition 中的每一条 message 都包含了以下三个属性：
->  * offset：表示 message 在当前 Partition 中的偏移量，是一个逻辑上的值，唯一确定了 Partition 中的一条 message，可以简单的认为是一个 id；
->  * MessageSize：表示 message 内容 data 的大小；
->  * data：message 的具体内容
+>  Kafka 是如何准确的知道 message 的偏移的呢？
 
-----
+这是因为在 Kafka 定义了标准的数据存储结构，在 Partition 中的每一条 message 都包含了以下三个属性：
 
-## Kafka 生产者
-
-*生产者写消息的基本流程*
-
-1. 创建一个ProducerRecord : 这个对象需要包含消息的主题（topic）和值(value),可以选择性指定一个键值（key）或者分区（partition）。
-2. 对这个对象进行序列化 : 因为 Kafka 的消息需要从客户端传到服务端，涉及到网络传输，所以需要实现序列
-3. 发送到分配器(partitioner): 如果我们指定了分区，那么分配器返回该分区即可；否则，分配器将会基于键值来选择一个分区并返回。
-5. 生产者知道了消息所属的主题和分区，发送这条记录到相同主题和分区的批量消息中(不是直接被发送到服务端，而是放入了生产者的一个缓存里面),在这个缓存里面，多条消息会被封装成为一个批次（batch）
-6. `Sender`线程启动以后会从缓存里面去获取可以发送的批次,`Sender`线程把一个一个批次发送到broker
-7. 当broker接收到消息后，如果成功写入则返回一个包含消息的主题、分区及位移的RecordMetadata对象，否则返回异常。
-8. 生产者接收到结果后，对于异常可能会进行重试。
-
-<img width="583" alt="Screen Shot 2021-12-16 at 10 59 46 AM" src="https://user-images.githubusercontent.com/27160394/146300209-2804c334-a0a2-4e1c-beae-0aa9ba6c3c29.png">
-
-**Spark**
-* 消息缓冲区
-* `Sender`线程把一个一个批次发送到broker
-* 回执确认：acks，如对效率要求较高的情况下建议使用0
+* offset：表示 message 在当前 Partition 中的偏移量，是一个逻辑上的值，唯一确定了 Partition 中的一条 message，可以简单的认为是一个 id；
+* MessageSize：表示 message 内容 data 的大小；
+* * data：message 的具体内容
 
 
+![image](https://github.com/yul154/Frameworks/assets/27160394/5a21432b-6b7b-413d-b229-ab3cb3316109)
 
-----
-## Broker
 
-broker 是消息的代理，Producers往Brokers里面的指定Topic中写消息，Consumers从Brokers里面拉取指定Topic的消息，然后进行业务处理，broker在中间起到一个代理保存消息的中转站
+在partition中通过offset查找消息的过程：
 
-### 分区策略
-
-数据存在不同的partition上，那kafka就把这些partition做备份。比如，现在我们有三个partition，分别存在三台broker上。每个partition都会备份，这些备份散落在不同的broker上
-
-分区的原因
-* 方便在集群中扩展，每个 Partition 可以通过调整以适应他所在的机器，而一个 topic 可以有多个 Partition 组成，因此这个集群就可以适应任意大小的数据了；
-* 可以提高并发，因为可以以 Partition 为单位读写了。
-  
-分区的原则
-* 我们将 producer 发送的数据封装成一个 ProducerRecord 对象。
-  * 指明 partition 的情况下，直接将指明的值直接作为 partition 值；
-  * 没有指明 partition 值但有 key 的情况下，将 key 的 hash 值与 topic 的 partition 数进行取余得到 partition 值；
-  * 既没有partition值有没有key值的情况下，第一次调用时随机生成一个整数(后面调用在这个整数上自增)，将这个值的 topic 可用的 partition 总数取余得到 partition 值，也就是常说的 Round Robin（轮询调度）算法。
-  
+1. 根据 offset 的值，查找 segment 段中的 index 索引文件。由于索引文件命名是以上一个文件的最后一个offset 进行命名的，所以，使用二分查找算法能够根据offset 快速定位到指定的索引文件
+2. 找到索引文件后，根据 offset 进行定位，找到索引文件中的匹配范围的偏移量position
+3. 得到 position 以后，再到对应的 log 文件中，从 position处开始查找 offset 对应的消息，将每条消息的 offset 与目标 offset 进行比较，直到找到消息
+ 
  
 ### 数据可靠性保证(主从复制)
-
 
 1. 为保证 producer 发送的数据，能可靠的发送到指定的 topic
 2. topic 的每个 partition 收到 producer 发送的数据后，都需要向 producer 发送 ack（acknowledgement 确认收到），
@@ -203,11 +219,16 @@ Kafka 选择了第二种方案，
 * 虽然第二种方案的网络延迟会比较高，但网络延迟对 Kafka 的影响较小（同一网络环境下的传输）
 
 
-* ISR：in-sync replics，每个分区(Partition)中同步的副本列表。
-* Hight Watermark：副本水位值，表示分区中最新一条已提交(Committed)的消息的Offset。
-* LEO：Log End Offset，Leader中最新消息的Offset。
-* Committed Message：已提交消息，已经被所有ISR同步的消息。
-* Lagging Message：没有达到所有ISR同步的消息。
+
+#### 主从复制的一些名词
+
+|Term|Explaination|
+|----|----｜
+|ISR |in-sync replics，每个分区(Partition)中同步的副本列表。
+| Hight Watermark | 副本水位值，表示分区中最新一条已提交(Committed)的消息的Offset。
+|LEO：Log End Offset | Leader中最新消息的Offset。
+| Committed Message |已提交消息，已经被所有ISR同步的消息。
+| Lagging Message | 没有达到所有ISR同步的消息。
 
 
 ISR
@@ -235,9 +256,7 @@ leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leade
 为保证多个副本之间的数据一致性，其余的 follower 会先将各自的log文件高于 HW 的部分截掉，然后从新的 leader 同步数据。
 ````
 
-####  Exactly Once
-
-
+**Exactly Once**
 
 |寓意|级别|优劣势|
 |---|----|-----|
@@ -247,6 +266,7 @@ leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leade
 
 **幂等性**
 > 对于一些非常重要的信息，比如说交易数据，下游数据消费者要求数据既不重复也不丢失，即 Exactly Once 语义。
+
 * 所谓的幂等性就是指 Producer 不论向 Server 发送多少次重复数据，Server 端都只会持久化一条。幂等性结合 At Least Once 语义，就构成了 Kafka 的 Exactly Once 
 * At Least Once + 幂等性 = Exactly Once 
 * 要启用幂等性，只需要将 Producer 的参数中`enable.idompotence`设置为 true
@@ -260,11 +280,10 @@ leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leade
 ## 消费方式
 > Kafka consumer 采用`pull`模式从 broker 中读取数据。
 
-
 * push : 从Broker 推向Consumer，即Consumer 被动的接收消息,由Broker 来主导消息的发送
   * push（推）模式很难适应消费速率不同的消费者，因为消息发送速率是由 broker 决定的。
   * 它的目标是尽可能以最快速度传递消息，但是这样很容易造成 consumer 来不及处理消息，典型的表现就是拒绝服务以及网络拥塞。
-  * 
+  
 * pull : 指的是 Consumer 主动向 Broker 请求拉取消息，即 Broker 被动的发送消息给 Consumer
   * pull 模式则可以根据 consumer 的消费能力以适当的速率消费消息。
   * pull 模式可简化 broker 的设计
@@ -273,7 +292,7 @@ leader 故障 leader 发生故障之后，会从 ISR 中选出一个新的 leade
 
 
 
-## 分区分配策略
+## 消费分区分配策略
 > 哪个 partition 由哪个 consumer 来消费
 
 Kafka 有两种分配策略，
@@ -285,13 +304,20 @@ Kafka 有两种分配策略，
 <img width="240" alt="Screen Shot 2021-12-15 at 12 40 33 PM" src="https://user-images.githubusercontent.com/27160394/146124398-23c2bad6-7ede-4877-9ee7-8f368d171ab6.png">
 
 
-> 在订阅多个 partition 时 range 会有不均匀问题，kafka 默认为 range，因为不考虑多 partition 订阅时，range 效率更高。
+在订阅多个partition时 range 会有不均匀问题，kafka 默认为 range，因为不考虑多 partition 订阅时，range 效率更高。
 
 
-#### 分区重平衡
+## 分区重平衡
 > 当消费者离开消费组（比如重启、宕机等）时，它所消费的分区会分配给其他分区。这种现象称为重平衡(rebalance)
 
 在重平衡期间，所有消费者都不能消费消息，因此会造成整个消费组短暂的不可用
+
+Rebalance 的触发条件有3个
+1. 组成员个数发生变化。例如有新的 consumer 实例加入该消费组或者离开组。
+2. 订阅的 Topic 个数发生变化。
+3. 订阅 Topic 的分区数发生变化。
+
+Rebalance 发生时，Group 下所有 consumer 实例都会协调在一起共同参与，kafka 能够保证尽量达到最公平的分配。但是Rebalance 过程对 consumer group 会造成比较严重的影响。在 Rebalance 的过程中 consumer group 下的所有消费者实例都会停止工作，等待 Rebalance 过程完成。
 
 
 消费者通过定期发送心跳（hearbeat）到一个作为组协调者(group coordinator)的broker来保持在消费组内存活。
@@ -304,9 +330,13 @@ Kafka 有两种分配策略，
   *  一个消费者多长时间不拉取消息但仍然保持存活，这个配置可以避免活锁（livelock）(活锁，是指应用没有故障但是由于某些原因不能进一步消费)
 
 
+Rebalance 过程分为两步：JoinGroup 请求和 SyncGroup 请求。
+1. JoinGroup :JoinGroup 请求的主要作用是将组成员订阅信息发送给领导者消费者，待领导者制定好分配方案后，重平衡流程进入到 SyncGroup 请求阶段。
+2. SyncGroup：SyncGroup 请求的主要目的，就是让协调者把领导者制定的分配方案下发给各个组内成员。当所有成员都成功接收到分配方案后，消费者组进入到 Stable 状态，即开始正常的消费工作
+
+
 
 ### Partition 被消费
-
 >  Consumer Group 在消费时需要从不同的 Partition 获取消息，那最终如何重建出 Topic 中消息的顺序呢?
 
 没有办法。Kafka 只会保证在 Partition 内消息是有序的
@@ -317,9 +347,7 @@ Kafka 有两种分配策略，
 Partition 会为每个 Consumer Group 保存一个偏移量，记录 Group 消费到的位置
 
 
-
-
-## offset 的维护
+**offset 的维护**
 > 由于consumer在消费过程中可能会出现断电宕机等故障,consumer恢复后需要从故障前的位置的继续消费,所以 consumer 需要实时记录自己消费到了哪个 offset，以便故障恢复后继续消费
 
 同一个消费者组中的消费者， 同一时刻只能有一个消费者消费。
@@ -334,7 +362,6 @@ exclude.internal.topics=false
 ```
 bin/kafkabin/kafka--consoleconsole--consumer.sh consumer.sh ----topic __consumer_offsets topic __consumer_offsets ----zookeeper zookeeper hadoophadoop102102:2181 :2181 ----formatter formatter
 ```
-
 
 -----
 # Kafka 性能
@@ -376,12 +403,10 @@ Kafka消息消费有两个consumer接口，Low-level API和High-level API：
 
 ### 如何保证消息不被重复消费？
 
-
 Kafka所提供的消息精确一次消费的手段有两个：幂等性Producer和事务型Producer。
 * 幂等性Producer只能保证单会话、单分区上的消息幂等性；
 * 事务型Producer可以保证跨分区、跨会话间的幂等性；
 * 事务型Producer功能更为强大，但是同时，其效率也会比较低下。
-
 
 
 目前Kafka默认提供的消息可靠机制是“至少一次” :
@@ -408,29 +433,23 @@ Exactly once: At Least Once + 幂等性
 * kafka每个partition中的消息在写入时都是有序的，消费时，每个partition只能被每一个group中的一个消费者消费，保证了消费时也是有序的。
 * 整个topic不保证有序。如果为了保证topic整个有序，那么将partition调整为1.
 
+----
 
 ## kafka 的高可用机制
 
+|技术|解释|
+|---|---|
+|顺序写磁盘|Kafka 的 producer 生产数据，要写入到 log 文件中，写的过程是一直追加到文件末端，为顺序写。官网有数据表明，同样的磁盘，顺序写能到到 600M/s，而随机写只有 100k/s。这与磁盘的机械机构有关，顺序写之所以快，是因为其省去了大量磁头寻址的时间。
+|零拷贝技术|零拷贝主要的任务就是避免CPU将数据从一块存储拷贝到另外一块存储，主要就是利用各种零拷贝技术，避免让CPU做大量的数据拷贝任务，减少不必要的拷贝，或者让别的组件来做这一类简单的数据传输任务，让CPU解脱出来专注于别的任务。这样就可以让系统资源的利用更加有效
+|分区分段+索引|Kafka的message是按topic分类存储的，topic中的数据又是按照一个一个的partition即分区存储到不同broker节点。每个partition对应了操作系统上的一个文件夹，partition实际上又是按照segment分段存储的。这也非常符合分布式系统分区分桶的设计思想|
+|批量读写|Kafka数据读写也是批量的而不是单条的
 
-## Kafka 高效读写数据（谈谈 Kafka 吞吐量为何如此高）
+----
+## 顺序
+1. 该topic强制采用一个分区，所有消息放到一个队列里，这样能达到全局顺序性。但是会损失高并发特性。
+2. 局部有序，采用路由机制，将同一个订单的不同状态消息存储在一个分区partition，单线程消费
 
-### 1.顺序写磁盘
-Kafka 的 producer 生产数据，要写入到 log 文件中，写的过程是一直追加到文件末端，为顺序写。官网有数据表明，同样的磁盘，顺序写能到到 600M/s，而随机写只有 100k/s。这与磁盘的机械机构有关，顺序写之所以快，是因为其省去了大量磁头寻址的时间。
-
-### 2. 零拷贝技术
-
-零拷贝主要的任务就是避免 CPU 将数据从一块存储拷贝到另外一块存储，主要就是利用各种零拷贝技术，避免让 CPU 做大量的数据拷贝任务，减少不必要的拷贝，或者让别的组件来做这一类简单的数据传输任务，让 CPU 解脱出来专注于别的任务。这样就可以让系统资源的利用更加有效。
-
-### 3.分区分段+索引
-
-* Kafka的message是按topic分类存储的，topic中的数据又是按照一个一个的partition即分区存储到不同broker节点。
-* 每个partition对应了操作系统上的一个文件夹，partition实际上又是按照segment分段存储的。这也非常符合分布式系统分区分桶的设计思想
-
-
-#### 4.批量读写
-Kafka数据读写也是批量的而不是单条的
-
-
+----
 ## Zookeeper 在 Kafka 中的作用
 
 kafka在所有broker中选出一个controller，所有Partition的Leader选举都由controller决定。
@@ -446,11 +465,12 @@ Zookeeper
 
 <img width="550" alt="Screen Shot 2021-12-15 at 12 49 47 PM" src="https://user-images.githubusercontent.com/27160394/146125167-419fa276-b675-4263-85eb-46e6886364ad.png">
 
-
 ---
 
 # Kafka 事务
 > 事务可以保证 Kafka 在 Exactly Once 语义的基础上，生产和消费可以跨分区和会话，要么全部成功，要么全部失败。
+
+引入事务的目的： producer同时向多个topic发送数据，我们希望要么同时发送成功，要么全都失败，即保证向多个topic发送数据时是原子性的
 
 * Producer事务事务
 ```
@@ -461,6 +481,5 @@ Zookeeper
 ```
 对于 Consumer 而言，事务的保证就会相对较弱，尤其时无法保证 Commit 的信息被精确消费。这是由于 Consumer 可以通过 offset 访问任意信息，而且不同的 Segment File 生命周期不同，同一事务的消息可能会出现重启后被删除的情况。
 ```
-
-
+---
 
